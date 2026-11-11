@@ -1,4 +1,4 @@
-.PHONY: help run stop run-api run-ui logs logs-api logs-ui verify verify-api verify-ui test lint migrate export-spec clean-models env env-gpu
+.PHONY: help run stop run-api run-ui logs logs-api logs-ui verify verify-api verify-ui test lint migrate export-spec clean-models env env-gpu dataset
 
 COMPOSE = docker compose
 DL_ENV  = /home/hhaniffa/miniconda/envs/afd_v2/bin
@@ -14,6 +14,7 @@ help:
 	@echo "  Setup (run once)"
 	@echo "    make env          Create afd_v2 env + deps; auto-installs GPU torch if CUDA found"
 	@echo "    make env-gpu      Manually upgrade torch to CUDA 12.1 (RTX A2000)"
+	@echo "    make dataset      Download CIC-IDS2017 (~225 MB); skips if already present"
 	@echo ""
 	@echo "  Stack"
 	@echo "    make run          Start the stack — Docker if available, local otherwise"
@@ -148,6 +149,19 @@ env:
 env-gpu:
 	conda run -n afd_v2 pip install torch==2.5.1 \
 		--index-url https://download.pytorch.org/whl/cu121
+
+dataset:
+	@CSV_COUNT=$$(find -L data/CIC-IDS2017 -maxdepth 1 -name "*.csv" 2>/dev/null | wc -l); \
+	if [ "$$CSV_COUNT" -gt 0 ]; then \
+		echo "CIC-IDS2017 already present ($$CSV_COUNT CSV files) — skipping download."; \
+	else \
+		mkdir -p data/CIC-IDS2017; \
+		echo "Downloading CIC-IDS2017 (~225 MB) …"; \
+		conda run -n afd_v2 gdown --id 10UG7eEAUI8kV4_CMFsrK-5nVz4Bm0Ey3 -O data/CIC-IDS2017.zip; \
+		unzip -q data/CIC-IDS2017.zip -d data/CIC-IDS2017/; \
+		rm data/CIC-IDS2017.zip; \
+		echo "Done — $$(find -L data/CIC-IDS2017 -maxdepth 1 -name '*.csv' | wc -l) CSV files ready."; \
+	fi
 
 # ── Verify ─────────────────────────────────────────────────────────────────────
 verify: verify-api verify-ui

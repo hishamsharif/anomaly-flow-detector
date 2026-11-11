@@ -50,6 +50,7 @@ Re-running is safe — if the stack is already up, `make run` prints the URLs an
 
 ```bash
 make env        # create afd_v2 env + install deps; auto-installs GPU torch if CUDA found
+make dataset    # download CIC-IDS2017 (~225 MB); skips if already present
 make run        # detects no Docker, prints instructions for the next two commands
 make run-api    # apply migrations + start API on :8000 (separate terminal)
 make run-ui     # start Vite dev server on :5173 (separate terminal)
@@ -94,6 +95,7 @@ CORS_ORIGINS=["http://localhost:5173","http://localhost"]
 Setup
   make env          Create afd_v2 env + deps; auto-installs GPU torch if CUDA found
   make env-gpu      Manually upgrade torch to CUDA 12.1 (RTX A2000)
+  make dataset      Download CIC-IDS2017 (~225 MB); skips if already present
 
 Stack
   make run          Start stack — Docker if available, local guidance otherwise

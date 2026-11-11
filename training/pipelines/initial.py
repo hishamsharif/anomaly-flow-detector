@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import json
 import time
-import traceback
 from typing import Callable
 
 import numpy as np
@@ -102,6 +102,8 @@ def run_initial_training(
         known_attack_f1 = float(f1_score(y_te, labels_te, pos_label=1, average="binary", zero_division=0))
 
         metrics = {
+            "classifier_type": classifier_type,
+            "detector_type": detector_type,
             "f1": round(f1, 6),
             "far": round(far, 6),
             "amr": round(amr, 6),
@@ -128,7 +130,7 @@ def run_initial_training(
             metrics=metrics,
             artifact_dir=settings.model_artifact_dir,
         )
-        sync_update_model_version(db_url, version_id, path=artifact_path, metrics_json=__import__("json").dumps(metrics))
+        sync_update_model_version(db_url, version_id, path=artifact_path, metrics_json=json.dumps(metrics))
         emit("step", "95")
 
         # 7. Auto-promote to active

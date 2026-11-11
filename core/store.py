@@ -14,6 +14,8 @@ import numpy as np
 class ArtifactBundle:
     clf: Any
     ae: Any
+    clf_scaler: Any
+    det_scaler: Any
     feature_names: list[str]
     variance_mask: np.ndarray
     corr_mask: np.ndarray
@@ -60,22 +62,30 @@ class ModelStore:
         return str(final)
 
     def load_into_memory(self, path: str) -> ArtifactBundle:
-        from core.classifiers.xgboost_clf import XGBoostClassifier
-        from core.detectors.mlp_ae import MLPAutoencoder
+        from core.registry import CLASSIFIERS, DETECTORS
 
         p = Path(path)
-        clf = XGBoostClassifier()
+        meta = json.loads((p / "metadata.json").read_text())
+
+        clf_type = meta.get("classifier_type", "xgboost")
+        det_type = meta.get("detector_type", "mlp_ae")
+        clf = CLASSIFIERS[clf_type]()
         clf.load(str(p))
-        ae = MLPAutoencoder()
+        ae = DETECTORS[det_type]()
         ae.load(str(p))
+
+        clf_scaler = joblib.load(p / "clf_scaler.joblib")
+        det_scaler = joblib.load(p / "det_scaler.joblib")
         feature_names = json.loads((p / "feature_names.json").read_text())
         variance_mask = np.load(str(p / "variance_mask.npy"))
         corr_mask = np.load(str(p / "corr_mask.npy"))
-        meta = json.loads((p / "metadata.json").read_text())
         ae_threshold = float(meta.get("ae_threshold", ae.threshold))
+
         bundle = ArtifactBundle(
             clf=clf,
             ae=ae,
+            clf_scaler=clf_scaler,
+            det_scaler=det_scaler,
             feature_names=feature_names,
             variance_mask=variance_mask,
             corr_mask=corr_mask,
