@@ -1,0 +1,43 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+      args:
+        TORCH_BUILD_TYPE: ${TORCH_BUILD_TYPE:-cpu}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+    env_file:
+      - path: .env
+        required: false
+      - path: .env.demo
+        required: false
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            # Remove this block if nvidia-container-toolkit is not installed
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+    ports:
+      - "5173:5173"
+    environment:
+      - API_TARGET=http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy

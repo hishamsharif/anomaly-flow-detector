@@ -1,0 +1,139 @@
+import { useEffect, useState } from 'react'
+import {
+  getAvailableTypes,
+  getModels,
+  type AvailableTypesResponse,
+  type ModelVersionResponse,
+} from '../api/client'
+
+const STATUS_BADGE: Record<string, string> = {
+  active: 'bg-green-900 text-green-300',
+  training: 'bg-yellow-900 text-yellow-300',
+  failed: 'bg-red-900 text-red-300',
+  archived: 'bg-gray-800 text-gray-400',
+}
+
+export default function TrainingPage() {
+  const [types, setTypes] = useState<AvailableTypesResponse | null>(null)
+  const [models, setModels] = useState<ModelVersionResponse[]>([])
+  const [classifier, setClassifier] = useState('')
+  const [detector, setDetector] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    getAvailableTypes()
+      .then(data => {
+        setTypes(data)
+        if (data.classifiers.length) setClassifier(data.classifiers[0].id)
+        if (data.detectors.length) setDetector(data.detectors[0].id)
+      })
+      .catch(() => setError('Failed to load model types'))
+
+    getModels()
+      .then(data => setModels(data.items))
+      .catch(() => setError('Failed to load model history'))
+  }, [])
+
+  return (
+    <div className="max-w-4xl">
+      <h2 className="text-lg font-semibold text-white mb-6">Training</h2>
+
+      {error && (
+        <div className="mb-4 text-sm text-red-400 bg-red-900/30 border border-red-800 rounded px-3 py-2">
+          {error}
+        </div>
+      )}
+
+      {/* Controls */}
+      <div className="bg-gray-900 border border-gray-800 rounded-lg p-5 mb-6">
+        <div className="flex flex-wrap gap-4 items-end">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-400">Classifier</label>
+            <select
+              value={classifier}
+              onChange={e => setClassifier(e.target.value)}
+              className="bg-gray-800 border border-gray-700 text-white text-sm rounded px-3 py-2 min-w-[200px]"
+            >
+              {types?.classifiers.map(c => (
+                <option key={c.id} value={c.id}>{c.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-400">Detector</label>
+            <select
+              value={detector}
+              onChange={e => setDetector(e.target.value)}
+              className="bg-gray-800 border border-gray-700 text-white text-sm rounded px-3 py-2 min-w-[200px]"
+            >
+              {types?.detectors.map(d => (
+                <option key={d.id} value={d.id}>{d.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            disabled
+            title="Training available in Slice 2"
+            className="px-4 py-2 rounded text-sm font-medium bg-blue-800 text-blue-300 opacity-50 cursor-not-allowed"
+          >
+            Start Training
+          </button>
+        </div>
+      </div>
+
+      {/* Version history */}
+      <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+        <div className="px-5 py-3 border-b border-gray-800">
+          <h3 className="text-sm font-medium text-gray-300">Model Version History</h3>
+        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-xs text-gray-500 border-b border-gray-800">
+              <th className="text-left px-5 py-3">Name</th>
+              <th className="text-left px-4 py-3">Status</th>
+              <th className="text-left px-4 py-3">F1</th>
+              <th className="text-left px-4 py-3">FAR</th>
+              <th className="text-left px-4 py-3">Recall</th>
+              <th className="text-left px-4 py-3">Created</th>
+              <th className="px-4 py-3"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {models.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-5 py-6 text-center text-gray-500 text-sm">
+                  No versions yet — start training to create the first one.
+                </td>
+              </tr>
+            ) : (
+              models.map(m => (
+                <tr key={m.id} className="border-b border-gray-800 hover:bg-gray-800/40">
+                  <td className="px-5 py-3 text-white">{m.name}</td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs px-2 py-0.5 rounded ${STATUS_BADGE[m.status] ?? 'bg-gray-700 text-gray-300'}`}>
+                      {m.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-gray-300">{m.metrics?.f1?.toFixed(3) ?? '—'}</td>
+                  <td className="px-4 py-3 text-gray-300">{m.metrics?.far?.toFixed(5) ?? '—'}</td>
+                  <td className="px-4 py-3 text-gray-300">{m.metrics?.amr?.toFixed(3) ?? '—'}</td>
+                  <td className="px-4 py-3 text-gray-400">{new Date(m.created_at).toLocaleDateString()}</td>
+                  <td className="px-4 py-3">
+                    <button
+                      disabled
+                      className="text-xs text-blue-400 opacity-40 cursor-not-allowed"
+                    >
+                      Promote
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
