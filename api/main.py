@@ -9,6 +9,7 @@ from api.database import AsyncSessionLocal
 from api.db import crud
 from api.routers import health
 from api.routers import models as models_router
+from api.routers import training as training_router
 from runtime.manifest import resolve_host_environment
 
 settings = get_settings()
@@ -46,3 +47,4 @@ app.add_middleware(
 
 app.include_router(health.router)
 app.include_router(models_router.router)
+app.include_router(training_router.router)

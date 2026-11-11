@@ -50,3 +50,20 @@ class TypeEntry(BaseModel):
 class AvailableTypesResponse(BaseModel):
     classifiers: list[TypeEntry]
     detectors: list[TypeEntry]
+
+
+class TrainingStartRequest(BaseModel):
+    classifier_type: str
+    detector_type: str
+    mode: str = "initial"
+
+
+class TrainingJobResponse(BaseModel):
+    run_id: str
+
+
+class TrainingStatusResponse(BaseModel):
+    run_id: str
+    pct: int
+    mode: str
+    started_at: str

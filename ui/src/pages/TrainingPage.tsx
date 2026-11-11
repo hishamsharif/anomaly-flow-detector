@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   getAvailableTypes,
   getModels,
+  startTraining,
+  subscribeToTraining,
   type AvailableTypesResponse,
   type ModelVersionResponse,
 } from '../api/client'
@@ -20,6 +22,13 @@ export default function TrainingPage() {
   const [detector, setDetector] = useState('')
   const [error, setError] = useState<string | null>(null)
 
+  // Training state
+  const [training, setTraining] = useState(false)
+  const [pct, setPct] = useState(0)
+  const [logs, setLogs] = useState<string[]>([])
+  const esRef = useRef<EventSource | null>(null)
+  const logsEndRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     getAvailableTypes()
       .then(data => {
@@ -33,6 +42,54 @@ export default function TrainingPage() {
       .then(data => setModels(data.items))
       .catch(() => setError('Failed to load model history'))
   }, [])
+
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [logs])
+
+  const refreshModels = () =>
+    getModels()
+      .then(data => setModels(data.items))
+      .catch(() => {})
+
+  const handleStart = async () => {
+    setError(null)
+    setTraining(true)
+    setPct(0)
+    setLogs([])
+
+    try {
+      const { run_id } = await startTraining({ classifier_type: classifier, detector_type: detector })
+      const es = subscribeToTraining(run_id)
+      esRef.current = es
+
+      es.addEventListener('progress', e => {
+        setLogs(prev => [...prev, e.data])
+      })
+      es.addEventListener('step', e => {
+        setPct(parseInt(e.data, 10))
+      })
+      es.addEventListener('done', e => {
+        setLogs(prev => [...prev, `✓ ${e.data}`])
+        setPct(100)
+        es.close()
+        esRef.current = null
+        setTraining(false)
+        refreshModels()
+      })
+      es.addEventListener('error', e => {
+        const msg = (e as MessageEvent).data ?? 'Training failed'
+        setError(msg)
+        setLogs(prev => [...prev, `✗ ${msg}`])
+        es.close()
+        esRef.current = null
+        setTraining(false)
+      })
+    } catch (e: any) {
+      setError(e.message ?? 'Failed to start training')
+      setTraining(false)
+    }
+  }
 
   return (
     <div className="max-w-4xl">
@@ -52,7 +109,8 @@ export default function TrainingPage() {
             <select
               value={classifier}
               onChange={e => setClassifier(e.target.value)}
-              className="bg-gray-800 border border-gray-700 text-white text-sm rounded px-3 py-2 min-w-[200px]"
+              disabled={training}
+              className="bg-gray-800 border border-gray-700 text-white text-sm rounded px-3 py-2 min-w-[200px] disabled:opacity-50"
             >
               {types?.classifiers.map(c => (
                 <option key={c.id} value={c.id}>{c.label}</option>
@@ -65,7 +123,8 @@ export default function TrainingPage() {
             <select
               value={detector}
               onChange={e => setDetector(e.target.value)}
-              className="bg-gray-800 border border-gray-700 text-white text-sm rounded px-3 py-2 min-w-[200px]"
+              disabled={training}
+              className="bg-gray-800 border border-gray-700 text-white text-sm rounded px-3 py-2 min-w-[200px] disabled:opacity-50"
             >
               {types?.detectors.map(d => (
                 <option key={d.id} value={d.id}>{d.label}</option>
@@ -74,13 +133,37 @@ export default function TrainingPage() {
           </div>
 
           <button
-            disabled
-            title="Training available in Slice 2"
-            className="px-4 py-2 rounded text-sm font-medium bg-blue-800 text-blue-300 opacity-50 cursor-not-allowed"
+            onClick={handleStart}
+            disabled={training || !classifier || !detector}
+            className="px-4 py-2 rounded text-sm font-medium bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Start Training
+            {training ? 'Training…' : 'Start Training'}
           </button>
         </div>
+
+        {/* Progress bar */}
+        {training && (
+          <div className="mt-4">
+            <div className="flex justify-between text-xs text-gray-400 mb-1">
+              <span>Progress</span>
+              <span>{pct}%</span>
+            </div>
+            <div className="w-full bg-gray-800 rounded-full h-2">
+              <div
+                className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Log lines */}
+        {logs.length > 0 && (
+          <div className="mt-3 bg-gray-950 border border-gray-800 rounded p-3 max-h-40 overflow-y-auto font-mono text-xs text-gray-300 space-y-0.5">
+            {logs.map((line, i) => <div key={i}>{line}</div>)}
+            <div ref={logsEndRef} />
+          </div>
+        )}
       </div>
 
       {/* Version history */}
