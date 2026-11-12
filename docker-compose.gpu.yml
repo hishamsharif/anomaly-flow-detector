@@ -1,0 +1,12 @@
+# GPU override — compose with this file when nvidia-container-toolkit is installed:
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
+# `make run` applies this automatically when nvidia-smi is available.
+services:
+  api:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

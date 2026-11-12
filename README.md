@@ -35,7 +35,7 @@ Re-running is safe — if the stack is already up, `make run` prints the URLs an
 | Requirement | Notes |
 |---|---|
 | Docker Desktop | daemon must be running (`docker version` to verify) |
-| NVIDIA Container Toolkit | optional — only needed for GPU passthrough in Docker |
+| NVIDIA Container Toolkit | optional — `make run` applies GPU passthrough automatically when detected; plain `docker compose up --build` runs CPU-only without it |
 
 ### Local dev path
 | Requirement | Notes |

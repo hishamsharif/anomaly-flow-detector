@@ -51,8 +51,8 @@ run:
 				$(COMPOSE) down; \
 				lsof -ti:8000 -ti:5173 2>/dev/null | xargs -r kill -9 2>/dev/null; true; \
 				if command -v nvidia-smi > /dev/null 2>&1 && nvidia-smi > /dev/null 2>&1; then \
-					echo "CUDA detected — building with cu121 torch"; \
-					TORCH_BUILD_TYPE=cu121 $(COMPOSE) up --build -d; \
+					echo "CUDA detected — building with cu121 torch + GPU passthrough"; \
+					TORCH_BUILD_TYPE=cu121 $(COMPOSE) -f docker-compose.yml -f docker-compose.gpu.yml up --build -d; \
 				else \
 					echo "No CUDA — building with CPU torch"; \
 					$(COMPOSE) up --build -d; \
@@ -65,8 +65,8 @@ run:
 		else \
 			lsof -ti:8000 -ti:5173 2>/dev/null | xargs -r kill -9 2>/dev/null; true; \
 			if command -v nvidia-smi > /dev/null 2>&1 && nvidia-smi > /dev/null 2>&1; then \
-				echo "CUDA detected — building with cu121 torch"; \
-				TORCH_BUILD_TYPE=cu121 $(COMPOSE) up --build -d; \
+				echo "CUDA detected — building with cu121 torch + GPU passthrough"; \
+				TORCH_BUILD_TYPE=cu121 $(COMPOSE) -f docker-compose.yml -f docker-compose.gpu.yml up --build -d; \
 			else \
 				echo "No CUDA — building with CPU torch"; \
 				$(COMPOSE) up --build -d; \

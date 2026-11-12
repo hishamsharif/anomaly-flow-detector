@@ -21,14 +21,6 @@ services:
       timeout: 3s
       retries: 10
       start_period: 15s
-    deploy:
-      resources:
-        reservations:
-          devices:
-            # Remove this block if nvidia-container-toolkit is not installed
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
 
   ui:
     build:
