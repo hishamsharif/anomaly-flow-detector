@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.settings import get_settings
-from api.dao.session import get_db
+from api.dao.db_conn import get_db
 from api.dao import alerts as alerts_dao
 from api.schemas import AlertResponse, PaginatedAlerts, VerdictCountResponse, VerdictRequest
 

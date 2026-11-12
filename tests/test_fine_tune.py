@@ -45,7 +45,7 @@ def _alert_dict(**kwargs) -> dict:
 
 
 async def _insert_alert(client: AsyncClient, **kwargs) -> Alert:
-    from api.dao.session import AsyncSessionLocal
+    from api.dao.db_conn import AsyncSessionLocal
     async with AsyncSessionLocal() as db:
         a = Alert(**_alert_dict(**kwargs))
         db.add(a)
@@ -55,7 +55,7 @@ async def _insert_alert(client: AsyncClient, **kwargs) -> Alert:
 
 
 async def _insert_model(path: str | None = None, status: str = "active") -> int:
-    from api.dao.session import AsyncSessionLocal
+    from api.dao.db_conn import AsyncSessionLocal
     async with AsyncSessionLocal() as db:
         m = ModelVersion(
             name="v1",

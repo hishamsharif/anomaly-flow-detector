@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.settings import get_settings
-from api.dao.session import get_db
+from api.dao.db_conn import get_db
 from api.dao import dashboard as dashboard_dao
 from api.schemas import DashboardSummary
 

@@ -30,7 +30,7 @@ def _make_alert(**kwargs) -> dict:
 
 async def _insert_alert(client: AsyncClient, **kwargs) -> Alert:
     """Helper: directly add an Alert row via the DB session in the test client."""
-    from api.dao.session import AsyncSessionLocal
+    from api.dao.db_conn import AsyncSessionLocal
     async with AsyncSessionLocal() as db:
         a = Alert(**_make_alert(**kwargs))
         db.add(a)

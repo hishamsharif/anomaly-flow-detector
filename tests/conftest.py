@@ -5,9 +5,9 @@ import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
-import api.dao.session as _session_module
+import api.dao.db_conn as _session_module
 from db.base import Base
-from api.dao.session import get_db
+from api.dao.db_conn import get_db
 from api.main import app
 
 _TEST_DB_URL = "sqlite+aiosqlite:///:memory:"

@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.dao.session import get_db
+from api.dao.db_conn import get_db
 from api.dao import model_versions as model_versions_dao
 from api.schemas import AvailableTypesResponse, ModelVersionResponse, PaginatedModels, TypeEntry
 from core.registry import CLASSIFIER_LABELS, DETECTOR_LABELS

@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config.settings import get_settings
-from api.dao.session import AsyncSessionLocal
+from api.dao.db_conn import AsyncSessionLocal
 from api.dao import model_versions as model_versions_dao
 from api.routers import health
 from api.routers import models as models_router

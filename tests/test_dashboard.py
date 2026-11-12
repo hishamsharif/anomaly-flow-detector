@@ -28,7 +28,7 @@ def _alert_dict(**kwargs) -> dict:
 
 
 async def _insert(client: AsyncClient, **kwargs) -> Alert:
-    from api.dao.session import AsyncSessionLocal
+    from api.dao.db_conn import AsyncSessionLocal
     async with AsyncSessionLocal() as db:
         a = Alert(**_alert_dict(**kwargs))
         db.add(a)

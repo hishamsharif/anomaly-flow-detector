@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.settings import get_settings
-from api.dao.session import get_db
+from api.dao.db_conn import get_db
 from api.dao import model_versions as model_versions_dao
 from api.schemas import AboutResponse, ModelVersionResponse
 
