@@ -27,9 +27,9 @@ def run_feature_engineering(
     test_df: pd.DataFrame,
     settings,
 ) -> tuple[
-    np.ndarray, np.ndarray,   # X_train_clf, X_train_det
-    np.ndarray, np.ndarray,   # X_val_clf,   X_val_det
-    np.ndarray, np.ndarray,   # X_test_clf,  X_test_det
+    np.ndarray, np.ndarray,   # X_train_classifier, X_train_detector
+    np.ndarray, np.ndarray,   # X_val_classifier,   X_val_detector
+    np.ndarray, np.ndarray,   # X_test_classifier,  X_test_detector
     np.ndarray, np.ndarray, np.ndarray,  # y_train, y_val, y_test
     FeatureEngResult,
 ]:
@@ -82,9 +82,9 @@ def run_feature_engineering(
 
     # Step 5a — classifier scaler: StandardScaler fit on full train (all classes)
     classifier_scaler = StandardScaler()
-    X_train_clf = classifier_scaler.fit_transform(X_train)
-    X_val_clf   = classifier_scaler.transform(X_val)
-    X_test_clf  = classifier_scaler.transform(X_test)
+    X_train_classifier = classifier_scaler.fit_transform(X_train)
+    X_val_classifier   = classifier_scaler.transform(X_val)
+    X_test_classifier  = classifier_scaler.transform(X_test)
 
     # Step 5b — detector scaler: StandardScaler fit on benign-only train
     # AE learns the distribution of normal traffic; fitting on attack rows would bias the scaler.
@@ -92,9 +92,9 @@ def run_feature_engineering(
     X_train_benign = X_train[benign_train_mask] if benign_train_mask.any() else X_train
     detector_scaler = StandardScaler()
     detector_scaler.fit(X_train_benign)
-    X_train_det = detector_scaler.transform(X_train_benign)   # benign rows only
-    X_val_det   = detector_scaler.transform(X_val)
-    X_test_det  = detector_scaler.transform(X_test)
+    X_train_detector = detector_scaler.transform(X_train_benign)   # benign rows only
+    X_val_detector   = detector_scaler.transform(X_val)
+    X_test_detector  = detector_scaler.transform(X_test)
 
     result = FeatureEngResult(
         variance_mask=variance_filter.mask,
@@ -106,9 +106,9 @@ def run_feature_engineering(
     )
 
     return (
-        X_train_clf, X_train_det,
-        X_val_clf,   X_val_det,
-        X_test_clf,  X_test_det,
+        X_train_classifier, X_train_detector,
+        X_val_classifier,   X_val_detector,
+        X_test_classifier,  X_test_detector,
         y_train, y_val, y_test,
         result,
     )

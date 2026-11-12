@@ -37,9 +37,9 @@ def run_initial_training(
         # 2. Feature engineering
         emit("progress", "Running feature engineering …")
         (
-            X_train_clf, X_train_det,
-            X_val_clf,   X_val_det,
-            X_test_clf,  X_test_det,
+            X_train_classifier, X_train_detector,
+            X_val_classifier,   X_val_detector,
+            X_test_classifier,  X_test_detector,
             y_train, y_val, y_test,
             feat_result,
         ) = run_feature_engineering(train_df, val_df, test_df, settings)
@@ -58,7 +58,7 @@ def run_initial_training(
         emit("progress", f"Training {CLASSIFIER_REGISTRY[classifier_type].label} …")
         classifier_class = CLASSIFIER_REGISTRY[classifier_type]
         classifier = classifier_class(device=device)
-        classifier.fit(X_train_clf, y_train)
+        classifier.fit(X_train_classifier, y_train)
         emit("step", "60")
 
         # 4. Fit AE on benign-only train, calibrate threshold on val-benign
@@ -66,9 +66,9 @@ def run_initial_training(
         emit("progress", "Training MLP Autoencoder on benign flows …")
         detector_class = ANOMALY_DETECTOR_REGISTRY[detector_type]
         detector = detector_class(device=device)
-        detector.fit(X_train_det)
+        detector.fit(X_train_detector)
         benign_val_mask = y_val == 0
-        X_val_benign = X_val_det[benign_val_mask] if benign_val_mask.any() else X_val_det
+        X_val_benign = X_val_detector[benign_val_mask] if benign_val_mask.any() else X_val_detector
         detector.calibrate_threshold(X_val_benign, percentile=settings.ae_anomaly_threshold_percentile)
         # p75 of val-benign reconstruction errors → severity threshold for NOVEL_ATTACK (critical vs high, §3.1)
         novel_critical_threshold = float(np.percentile(detector.score(X_val_benign), 75.0))
@@ -76,7 +76,7 @@ def run_initial_training(
 
         # 5. Evaluate on held-out test set
         emit("progress", "Evaluating …")
-        test_labels, test_confidences = classifier.predict(X_test_clf)
+        test_labels, test_confidences = classifier.predict(X_test_classifier)
 
         f1 = float(f1_score(y_test, test_labels, average="weighted", zero_division=0))
         pr_auc = float(average_precision_score(y_test, test_confidences) if len(np.unique(y_test)) > 1 else 0.0)
