@@ -1,15 +1,17 @@
-.PHONY: help setup start stop logs verify test lint migrate export-spec clean-models api ui
+.PHONY: help setup resetup start stop logs verify test lint migrate export-spec clean-models api ui
 
 COMPOSE        = docker compose
 DL_ENV         = /home/hhaniffa/miniconda/envs/afd_v2/bin
 DOCKER_RUNNING = docker compose ps --services --filter status=running 2>/dev/null | grep -q api
 
-# `make <cmd> api` / `make <cmd> ui` — no-op targets so Make doesn't error on the extra word
+# Parse positional component from MAKECMDGOALS at parse time (before any target definition)
+_COMP := $(or $(filter api ui,$(MAKECMDGOALS)),both)
+
+# `make <cmd> api` / `make <cmd> ui` — no-op targets; must come AFTER _COMP is set
 api ui:
 	@:
 
-# Parse positional component from MAKECMDGOALS at parse time
-_COMP := $(or $(filter api ui,$(MAKECMDGOALS)),both)
+.DEFAULT_GOAL := help
 
 # ── Help (default target) ──────────────────────────────────────────────────────
 help:
@@ -18,6 +20,7 @@ help:
 	@echo ""
 	@echo "  Setup (run once)"
 	@echo "    make setup            Create afd_v2 env + deps (GPU if CUDA found) + dataset"
+	@echo "    make resetup          Wipe env + DB + models, then run setup from scratch"
 	@echo ""
 	@echo "  Stack"
 	@echo "    make start            Start full stack  (Docker if available, local guide otherwise)"
@@ -72,6 +75,38 @@ setup:
 	fi
 	@echo ""
 	@echo "Setup complete. Next: make start"
+
+# ── Resetup (clean-slate rebuild) ─────────────────────────────────────────────
+resetup:
+	@echo ""
+	@echo "  WARNING: resetup will permanently delete:"
+	@echo "    • afd_v2 conda env  (all Python packages)"
+	@echo "    • afd.db            (all alerts, verdicts, model history)"
+	@echo "    • models/           (all trained model artifacts)"
+	@echo "    • logs/             (all log files)"
+	@echo ""
+	@printf "  Proceed? This cannot be undone. [y/N] "; \
+	read confirm; \
+	if [ "$$confirm" != "y" ] && [ "$$confirm" != "Y" ]; then \
+		echo "Aborted."; exit 0; \
+	fi; \
+	echo ""; \
+	echo "==> Stopping stack…"; \
+	$(COMPOSE) down 2>/dev/null; true; \
+	echo "==> Removing conda env…"; \
+	conda env remove -n afd_v2 -y 2>/dev/null; true; \
+	echo "==> Clearing database…"; \
+	rm -f data/afd.db; \
+	mkdir -p data; \
+	touch data/afd.db; \
+	echo "==> Clearing model artifacts…"; \
+	find models/ -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} + 2>/dev/null; true; \
+	echo "==> Clearing logs…"; \
+	rm -f logs/*.log 2>/dev/null; true; \
+	echo ""; \
+	echo "Clean slate — running setup…"; \
+	echo ""
+	$(MAKE) setup
 
 # ── Stack ──────────────────────────────────────────────────────────────────────
 start:

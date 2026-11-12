@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import {
   batchPredict,
   getPredictJobResults,
@@ -170,8 +170,8 @@ function ResultsTable({
         </thead>
         <tbody>
           {alerts.map(a => (
-            <>
-              <tr key={a.id} className="border-b border-gray-800 hover:bg-gray-800/30">
+            <React.Fragment key={a.id}>
+              <tr className="border-b border-gray-800 hover:bg-gray-800/30">
                 <td className="px-3 py-2 text-gray-400 font-mono text-xs">{a.flow_id}</td>
                 <td className="px-3 py-2">
                   <Badge text={a.consensus.replace('_', ' ')} cls={CONSENSUS_CLS[a.consensus] ?? 'bg-gray-800 text-gray-300'} />
@@ -198,7 +198,7 @@ function ResultsTable({
                 </td>
               </tr>
               {expanded === a.id && (
-                <tr key={`${a.id}-features`} className="border-b border-gray-800 bg-gray-900/60">
+                <tr className="border-b border-gray-800 bg-gray-900/60">
                   <td colSpan={7} className="px-3 py-2">
                     <div className="flex flex-wrap gap-2">
                       {a.top_features.map(f => (
@@ -210,7 +210,7 @@ function ResultsTable({
                   </td>
                 </tr>
               )}
-            </>
+            </React.Fragment>
           ))}
         </tbody>
       </table>

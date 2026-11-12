@@ -43,10 +43,11 @@ async def test_dashboard_summary_empty(client: AsyncClient):
     res = await client.get("/api/dashboard/summary")
     assert res.status_code == 200
     body = res.json()
-    assert body["total_alerts"] == 0
-    assert body["by_consensus"]["safe"] == 0
-    assert body["by_consensus"]["known_attack"] == 0
-    assert body["by_consensus"]["novel_attack"] == 0
+    assert body["total_24h"] == 0
+    assert body["safe_24h"] == 0
+    assert body["known_attack_24h"] == 0
+    assert body["novel_attack_24h"] == 0
+    assert body["pending_verdict_24h"] == 0
     assert body["by_severity"]["low"] == 0
     assert body["retrain_unlocked"] is False
     assert "verdict_threshold" in body
@@ -62,10 +63,12 @@ async def test_dashboard_summary_counts(client: AsyncClient):
     assert res.status_code == 200
     body = res.json()
 
-    assert body["total_alerts"] == 4
-    assert body["by_consensus"]["safe"] == 2
-    assert body["by_consensus"]["known_attack"] == 1
-    assert body["by_consensus"]["novel_attack"] == 1
+    assert body["total_24h"] == 4
+    assert body["safe_24h"] == 2
+    assert body["known_attack_24h"] == 1
+    assert body["novel_attack_24h"] == 1
+    # 2 of 4 have no analyst_verdict → pending
+    assert body["pending_verdict_24h"] == 2
     assert body["by_severity"]["low"] == 2
     assert body["by_severity"]["high"] == 1
     assert body["by_severity"]["critical"] == 1

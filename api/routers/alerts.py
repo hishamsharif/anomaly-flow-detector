@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -62,7 +64,6 @@ async def submit_verdict(
     if alert.analyst_verdict is not None:
         raise HTTPException(status_code=409, detail="Verdict already set — immutable after first submission (I2)")
 
-    from datetime import datetime, timezone
     alert.analyst_verdict = body.verdict
     alert.feedback_at = datetime.now(timezone.utc)
     await db.commit()

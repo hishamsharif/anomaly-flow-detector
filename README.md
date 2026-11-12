@@ -1,31 +1,23 @@
-# Anomaly Flow Detector
+# Anomaly Flow Detector (AFD)
 
-3-stage NIDS pipeline: Rule Engine → XGBoost Classifier → MLP Autoencoder.
+3-stage Network Intrusion Detection System: Rule Engine → XGBoost Classifier → MLP Autoencoder.
+Trained on CIC-IDS2017; produces **Known Attack**, **Novel/Zero-day Attack**, or **Safe** verdicts per flow with XAI feature attributions. Includes a Human-in-the-Loop (HITL) feedback loop that fine-tunes the autoencoder as analysts submit verdicts.
 
 ---
 
-## Quick Start
+## Quick Start (Docker)
 
-> Requires Docker Desktop (running). Nothing else needed on your machine.
+> Requires Docker Desktop (running). `make setup` handles everything else.
 
 ```bash
 git clone https://github.com/hishamsharif/anomaly-flow-detector
 cd anomaly-flow-detector
-docker compose up --build
+make setup    # create afd_v2 conda env + deps (GPU if CUDA found) + download dataset
+make start    # Docker if available, local fallback otherwise
 ```
 
 - API → `http://localhost:8000`
 - UI  → `http://localhost:5173`
-
-**Logs**
-
-```bash
-make logs        # all services
-make logs-api    # API only
-make logs-ui     # UI only
-```
-
-Re-running is safe — if the stack is already up, `make run` prints the URLs and exits.
 
 ---
 
@@ -35,29 +27,38 @@ Re-running is safe — if the stack is already up, `make run` prints the URLs an
 | Requirement | Notes |
 |---|---|
 | Docker Desktop | daemon must be running (`docker version` to verify) |
-| NVIDIA Container Toolkit | optional — `make run` applies GPU passthrough automatically when detected; plain `docker compose up --build` runs CPU-only without it |
+| NVIDIA Container Toolkit | optional — `make start` applies GPU passthrough automatically when detected |
 
 ### Local dev path
 | Requirement | Notes |
 |---|---|
-| Miniconda / conda | manages the `afd_v2` Python env |
-| Python 3.12 | inside the conda env — `make env` handles this |
-| Node 20+ | only if running the UI outside Docker (`make run-ui`) |
+| Miniconda / conda | manages the `afd_v2` Python env — `make setup` creates it |
+| Python 3.12 | inside the conda env, managed by `make setup` |
+| Node 20+ | only needed when running the UI outside Docker (`make start ui`) |
 
 ---
 
 ## Local Dev (without Docker)
 
 ```bash
-make env        # create afd_v2 env + install deps; auto-installs GPU torch if CUDA found
-make dataset    # download CIC-IDS2017 (~225 MB); skips if already present
-make run        # detects no Docker, prints instructions for the next two commands
-make run-api    # apply migrations + start API on :8000 (separate terminal)
-make run-ui     # start Vite dev server on :5173 (separate terminal)
+make setup          # one-off: create env + install deps (auto GPU) + download dataset
+make start api      # apply migrations + start API on :8000 (hot-reload, separate terminal)
+make start ui       # start Vite dev server on :5173 (separate terminal)
 ```
 
 All `make` targets use the `afd_v2` env directly — no `conda activate` needed.
-Logs from both services are written to `logs/api.log` and `logs/ui.log` — follow with `make logs-api` / `make logs-ui`.
+Logs from both services are written to `logs/api.log` and `logs/ui.log`.
+
+---
+
+## Clean Slate
+
+```bash
+make resetup        # stop stack, wipe env + DB + models + logs, then run setup from scratch
+```
+
+Use `make resetup` before a demo or when you want to verify the full setup path from zero.
+After `resetup`, run `make start` → navigate to Training → start initial training.
 
 ---
 
@@ -82,6 +83,7 @@ FEATURE_SELECTION_METHOD=mi         # mi | rfe
 AE_ANOMALY_THRESHOLD_PERCENTILE=95.0
 AE_REPLAY_BUFFER_FRACTION=0.10
 AE_FREEZE_EPOCHS=5
+FINE_TUNE_K_THRESHOLD=50            # analyst verdicts needed to unlock AE fine-tune
 
 LOG_LEVEL=INFO
 CORS_ORIGINS=["http://localhost:5173","http://localhost"]
@@ -93,32 +95,48 @@ CORS_ORIGINS=["http://localhost:5173","http://localhost"]
 
 ```
 Setup
-  make env          Create afd_v2 env + deps; auto-installs GPU torch if CUDA found
-  make env-gpu      Manually upgrade torch to CUDA 12.1 (RTX A2000)
-  make dataset      Download CIC-IDS2017 (~225 MB); skips if already present
+  make setup              Create afd_v2 env + deps (auto GPU) + download CIC-IDS2017 dataset
+  make resetup            Wipe env + DB + models + logs, then run setup from scratch
 
 Stack
-  make run          Start stack — Docker if available, local guidance otherwise
-  make stop         Stop the Docker stack
-  make run-api      Run API locally on :8000, hot-reload (logs → logs/api.log)
-  make run-ui       Start Vite dev server on :5173 (logs → logs/ui.log)
+  make start              Start full stack  (Docker if available, local guide otherwise)
+  make start api          Start just the API locally on :8000  (hot-reload)
+  make start ui           Start just the UI dev server on :5173
+  make stop               Stop the Docker stack
 
-Logs (auto-detects Docker or local)
-  make logs         Follow all logs
-  make logs-api     Follow API logs
-  make logs-ui      Follow UI logs
+Logs  (auto-detects Docker or local log files)
+  make logs               Follow all logs
+  make logs api           Follow API logs only
+  make logs ui            Follow UI logs only
 
 Verify
-  make verify       Check API and UI are reachable
-  make verify-api   Check API /health endpoint
-  make verify-ui    Check UI is serving on :5173
+  make verify             Check both API and UI are reachable
+  make verify api         Check API /health endpoint
+  make verify ui          Check UI is serving on :5173
 
-Dev
-  make test         Run pytest suite
-  make lint         Ruff check + format check
-  make migrate      Apply Alembic migrations
-  make export-spec  Write docs/openapi.json from the live app
-  make clean-models Delete versioned model artifacts under models/
+Development
+  make test               Run pytest suite
+  make lint               Ruff check + format check
+  make migrate            Apply Alembic migrations
+  make export-spec        Write docs/openapi.json from the live app
+  make clean-models       Delete versioned model artifacts under models/
+```
+
+---
+
+## Demo Workflow
+
+1. `make start` — starts API + UI
+2. Navigate to **Training** → select XGBoost + MLP-AE → **Start Training** (SSE progress bar)
+3. Navigate to **Inference** → upload a CSV or PCAP file → **Run Inference**
+4. Expand alert rows → review XAI feature attributions → submit analyst verdicts
+5. Navigate to **Dashboard** → watch the HITL verdict progress bar fill toward K=50
+6. Once K=50 is reached → **Retrain AE** button unlocks → trigger AE fine-tune
+7. Navigate to **Dataset** → EDA charts for CIC-IDS2017 class distribution and feature correlations
+
+Standalone CLI:
+```bash
+conda run -n afd_v2 python predict.py data/sample.csv
 ```
 
 ---
@@ -136,18 +154,32 @@ Host-environment readiness. Each check is `ok`, `warn`, or `blocker`.
 {
   "cuda":   { "level": "ok",   "message": "CUDA available", "detail": "CUDA 12.1" },
   "docker": { "level": "ok",   "message": "Docker available", "detail": "Docker 29.2.1" },
-  "images": { "level": "warn", "message": "Images not built yet", "detail": "Run make run once." }
+  "images": { "level": "warn", "message": "Images not built yet", "detail": "Run make start once." }
 }
 ```
 
 ### `GET /api/models/available-types`
-Returns supported classifier and detector IDs with display labels.
+Supported classifier and detector IDs with display labels.
 
-### `GET /api/models`
-Paginated list of trained model versions.
+### `GET /api/models` / `GET /api/models/active`
+Paginated model version list; active model or `null`.
 
-### `GET /api/models/active`
-Currently promoted model, or `null`.
+### `POST /api/training/start`
+Start initial training or AE fine-tune. Returns `run_id` for SSE subscription.
+
+### `GET /api/training/{run_id}/events`
+SSE stream: `progress` (log line), `step` (0–100 int), `done`, or `error` events.
+
+### `POST /api/predict/batch`
+Upload a `.csv` or `.pcap` file. Returns alerts with XAI attributions.
+- Sync (≤ 5 000 rows): `200 BatchPredictResponse`
+- Async (> 5 000 rows): `202 { "job_id": str, "flow_count": int }`
+
+### `GET /api/alerts` / `POST /api/alerts/{id}/verdict`
+Paginated alert listing with optional `consensus` / `verdict` filters; verdict submission.
+
+### `GET /api/dashboard/summary`
+24-hour windowed alert counts, severity breakdown, HITL retrain eligibility.
 
 ---
 
@@ -157,33 +189,20 @@ Currently promoted model, or `null`.
 make test
 ```
 
-```
-tests/test_health.py::test_health_returns_200                   PASSED
-tests/test_health.py::test_health_shape                         PASSED
-tests/test_health.py::test_health_db_ok_true                    PASSED
-tests/test_models.py::test_available_types_has_expected_entries PASSED
-tests/test_models.py::test_active_model_is_null_initially       PASSED
-tests/test_models.py::test_model_list_is_empty_initially        PASSED
-tests/test_preflight.py::test_preflight_returns_all_checks      PASSED
-tests/test_preflight.py::test_preflight_check_shape             PASSED
-```
-
 Tests use `httpx.AsyncClient` with in-process ASGI transport — no live server needed.
 
 ---
 
 ## Persistent Directories
 
-These directories are bind-mounted out of the container to the project root — they survive `make stop` / `make run` and can be inspected directly on the host.
+These directories are bind-mounted out of the container — they survive `make stop` / `make start`.
 
-| Directory | Contents | Access |
+| Directory | Contents | Notes |
 |---|---|---|
-| `data/` | SQLite database (`afd.db`) + CIC-IDS2017 CSV files | read/write any time |
-| `models/` | Versioned model artifacts (one sub-folder per trained version) | read/write any time |
-| `logs/api.log` | Uvicorn request + application logs | `tail -f logs/api.log` or `make logs-api` |
-
-> Training a new model writes artifacts to `models/<name>/` and updates `data/afd.db`.
-> Deleting `data/afd.db` resets the model registry; deleting a `models/<name>/` folder removes that version's artifacts.
+| `data/afd.db` | SQLite database (alerts, model registry, verdicts) | Reset with `make resetup` |
+| `data/CIC-IDS2017/` | Dataset CSV files (~225 MB) | Populated by `make setup` |
+| `models/` | Versioned model artifacts (one sub-folder per trained version) | Cleared by `make resetup` |
+| `logs/` | `api.log`, `ui.log` | `make logs [api|ui]` to follow |
 
 ---
 
@@ -191,13 +210,13 @@ These directories are bind-mounted out of the container to the project root — 
 
 ```
 api/          FastAPI app — routers, config, database, schemas
-alembic/      Async migrations
-core/         Classifier + Detector protocols and registries
-training/     Feature engineering pipelines
-inference/    PCAP / CSV adapters
-runtime/      Host-environment probes (CUDA, Docker) and preflight checks
+alembic/      DB schema migrations
+core/         Rule engine, classifier + detector protocols, model store
+training/     Feature engineering, initial training, AE fine-tune pipelines
+inference/    3-stage inference pipeline, CSV + PCAP adapters
 tests/        Pytest suite
-ui/           React + Vite + Tailwind frontend
-data/         SQLite DB and CIC-IDS2017 dataset (not committed)
+ui/           React 18 + Vite + Tailwind SPA (5 tabs)
+data/         SQLite DB + CIC-IDS2017 dataset (not committed)
 models/       Versioned model artifacts (not committed)
+docs/         OpenAPI spec, architecture notes
 ```

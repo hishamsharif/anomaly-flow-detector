@@ -150,13 +150,11 @@ def run_batch_inference(
         ae_score = float(ae_scores[batch_idx])
 
         is_known_attack = (label_int != 0) and (conf >= clf_confidence_threshold)
-        clf_verdict = "KNOWN_ATTACK" if is_known_attack else "BENIGN"
         ae_verdict = "NOVEL_ATTACK" if ae_score > bundle.ae_threshold else "SAFE"
-
-        consensus = "KNOWN_ATTACK" if clf_verdict == "KNOWN_ATTACK" else ae_verdict
+        consensus = "KNOWN_ATTACK" if is_known_attack else ae_verdict
 
         # Explainability: Stage 2 attribution when KNOWN_ATTACK; Stage 3 otherwise.
-        if consensus == "KNOWN_ATTACK" and importances is not None:
+        if is_known_attack and importances is not None:
             # Local attribution proxy: |importances[j] × scaled_input[j]|
             contributions = np.abs(importances * X_clf[batch_idx])
         else:

@@ -8,7 +8,7 @@ function PipelineDiagram() {
     {
       num: '1',
       title: 'Rule Engine',
-      desc: 'CVE signatures, IP blocklists, trusted ranges',
+      desc: 'Port-based attack signatures & allowlisted service ports',
       color: 'border-purple-700 bg-purple-900/20',
       badge: 'bg-purple-800 text-purple-200',
     },
@@ -150,6 +150,27 @@ export default function AboutPage() {
         {data && (
           <span className="text-xs text-gray-500 font-mono">v{data.version}</span>
         )}
+      </div>
+
+      {/* System overview */}
+      <div className="bg-gray-900 border border-gray-800 rounded-lg p-5 space-y-2">
+        <h3 className="text-sm font-semibold text-gray-300">What is AFD?</h3>
+        <p className="text-sm text-gray-400 leading-relaxed">
+          Anomaly Flow Detector (AFD) is a 3-stage Network Intrusion Detection System (NIDS)
+          built on the CIC-IDS2017 benchmark dataset. It classifies network flows as{' '}
+          <span className="text-orange-300 font-medium">Known Attack</span>,{' '}
+          <span className="text-red-400 font-medium">Novel/Zero-day Attack</span>, or{' '}
+          <span className="text-green-300 font-medium">Safe</span> using a layered detection
+          strategy: deterministic port-based rules, a supervised XGBoost classifier for known
+          attack patterns, and an unsupervised MLP Autoencoder for zero-day anomaly detection.
+        </p>
+        <p className="text-sm text-gray-400 leading-relaxed">
+          A <span className="text-blue-300 font-medium">Human-in-the-Loop (HITL)</span> feedback
+          loop allows SOC analysts to submit verdicts on alerts. Once {' '}
+          <span className="text-white font-mono text-xs">K=50</span> verdicts are collected,
+          the autoencoder is fine-tuned on analyst-confirmed benign flows, allowing the system
+          to adapt to evolving network conditions without full retraining.
+        </p>
       </div>
 
       {/* Pipeline */}

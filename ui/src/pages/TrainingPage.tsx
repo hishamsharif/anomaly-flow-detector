@@ -219,7 +219,7 @@ export default function TrainingPage() {
                   <td className="px-4 py-3 text-gray-300">{m.metrics?.amr?.toFixed(3) ?? '—'}</td>
                   <td className="px-4 py-3 text-gray-400">{new Date(m.created_at).toLocaleDateString()}</td>
                   <td className="px-4 py-3">
-                    {m.status !== 'active' && m.status !== 'training' ? (
+                    {m.status === 'archived' ? (
                       <button
                         onClick={() => handlePromote(m.id)}
                         disabled={promotingId === m.id}
