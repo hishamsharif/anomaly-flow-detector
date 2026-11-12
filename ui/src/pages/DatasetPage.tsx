@@ -335,10 +335,10 @@ function CorrelationHeatmap() {
     const labelH = 70
     const maxCell = Math.floor((w - labelW - 4) / n)
     const cellSize = Math.min(maxCell, 36)
-    const totalW = labelW + n * cellSize
     const totalH = labelH + n * cellSize + 20
 
     const canvas = ctx.canvas
+    canvas.style.width = (labelW + n * cellSize) + 'px'
     canvas.style.height = totalH + 'px'
 
     // Cells
