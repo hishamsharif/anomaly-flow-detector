@@ -315,7 +315,20 @@ GET /api/alerts/verdict-count
 → 200  {"eligible": 23, "threshold": 50, "unlocked": false}
 ```
 
-### 4.6 About
+### 4.6 Dashboard
+
+```
+GET /api/dashboard/summary
+→ 200  {
+    "total_24h":           int,   // all alerts in last 24 h
+    "safe_24h":            int,
+    "known_attack_24h":    int,
+    "novel_attack_24h":    int,
+    "pending_verdict_24h": int    // alerts with analyst_verdict = null
+  }
+```
+
+### 4.7 About
 
 ```
 GET /api/about
@@ -329,6 +342,30 @@ GET /api/about
 ---
 
 ## 5. Data Pipeline Contracts
+
+### 5.0 Data Understanding — EDA
+
+Before any model is trained, an exploratory analysis of CIC-IDS2017 must be produced and
+saved to `training/eda/eda_cicids2017.ipynb`. The notebook is a living artefact: it is
+produced once, committed, and updated when the dataset understanding changes. It directly
+informs — and is cited in — the A2 report.
+
+**Required analyses:**
+
+| Analysis | Purpose |
+|---|---|
+| Flow volume by hour and day | Confirm diurnal business-hour cycle; validate that Mon–Thu and Fri-AM share the same temporal pattern (ADR-02 justification) |
+| Attack-type distribution by day | Show that Fri-PM contains DDoS + PortScan exclusively — the evidence for why Fri-PM is a genuine novel-attack test set |
+| Label imbalance per split | BENIGN:attack ratio for train / val / test — quantifies why SMOTE is required (see ADR-14) |
+| Feature distribution over time (Mon→Fri) | Rolling mean / std of key features — detects concept drift between capture days |
+| Benign-traffic seasonality (Fri-AM vs Mon–Thu) | Validates that val-benign (used for AE threshold calibration) is representative of training-benign; misrepresentation would bias the p95 threshold |
+| Correlation heatmap (pre- and post-pruning) | Visualises the effect of the correlation filter (§5.1 Step 2); confirms high-correlation feature pairs are removed |
+| Feature variance ranking | Shows which features VarianceThreshold (§5.1 Step 1) drops; confirms no informative feature is lost |
+
+**Outputs consumed by the pipeline:**
+- Findings feed into the SMOTE cap choice (`SMOTE_MAX_PER_CLASS`) and threshold percentile (`AE_ANOMALY_THRESHOLD_PERCENTILE`)
+- Label imbalance ratios are cited in §12 ADR-14 (SMOTE justification)
+- Benign seasonality analysis is cited in §12 ADR-05 (threshold calibration)
 
 ### 5.1 Initial Training Pipeline
 

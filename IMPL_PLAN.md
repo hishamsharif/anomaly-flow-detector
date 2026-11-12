@@ -51,6 +51,27 @@ Every slice ships its own tests; nothing is marked done without a passing test.
 
 ---
 
+### Slice 1.5 — EDA (~3h)
+
+**Deliverable:** `training/eda/eda_cicids2017.ipynb` committed — time-series analysis of CIC-IDS2017 that justifies the day-based split, SMOTE cap, and AE threshold percentile. Required by §5.0.
+
+> **Prerequisite:** `make dataset` must have run (CIC-IDS2017 CSVs present).
+
+| File / component | Work |
+|-----------------|------|
+| `training/eda/eda_cicids2017.ipynb` | Full EDA notebook (see §5.0 for required analyses) |
+| Flow volume by hour/day | Confirm diurnal cycle; show Mon–Thu and Fri-AM share the same pattern |
+| Attack-type distribution by day | Evidence that Fri-PM = DDoS + PortScan only → genuine unseen test set |
+| Label imbalance per split | BENIGN:attack ratio for train/val/test; primary justification for SMOTE (ADR-14) |
+| Feature distribution Mon→Fri | Rolling mean/std of key features; detects concept drift across capture days |
+| Benign seasonality Fri-AM vs Mon–Thu | Validates val-benign is representative; informs AE threshold calibration (ADR-05) |
+| Correlation heatmap | Pre- and post-pruning; confirms correlation filter effect |
+| Feature variance ranking | Confirms VarianceThreshold drops no informative feature |
+
+**Findings feed directly into Slice 2:** SMOTE cap (`SMOTE_MAX_PER_CLASS`), threshold percentile (`AE_ANOMALY_THRESHOLD_PERCENTILE`), and correlation threshold (`CORRELATION_THRESHOLD`) should be set after reviewing the notebook, not before.
+
+---
+
 ### Slice 2 — Initial Training Pipeline (~8h)
 
 **Deliverable:** User uploads a CSV on the Training tab, clicks Start, watches the SSE progress bar fill, then sees the new version appear in history.
@@ -61,7 +82,7 @@ Every slice ships its own tests; nothing is marked done without a passing test.
 | `training/feature_eng/variance_filter.py` | Drop features ≤ `VARIANCE_THRESHOLD` |
 | `training/feature_eng/correlation_filter.py` | Drop correlated features ≥ `CORR_THRESHOLD` |
 | `training/feature_eng/selector.py` | MI / RFE selector (saves `variance_mask`, `corr_mask`) |
-| `training/feature_eng/pipeline.py` | Chains the three steps above |
+| `training/feature_eng/pipeline.py` | Chains the four steps: variance → correlation → selector → **SMOTE** (Step 4, §5.1) |
 | `core/classifiers/xgboost_clf.py` | XGBoost; respects `DEVICE` config var |
 | `core/detectors/mlp_ae.py` | MLP-AE; PyTorch; respects `DEVICE` config var |
 | `training/pipelines/initial.py` | Full pipeline: load → feature eng → fit CLF → fit AE → save |
@@ -89,10 +110,13 @@ Every slice ships its own tests; nothing is marked done without a passing test.
 | `api/db/models.py` | `Alert` ORM (Alembic migration) |
 | `api/schemas.py` | `AlertResponse`, `BatchPredictResponse` schemas |
 | I3 shape check | `inference/pipeline.py`: validate feature vector length against saved mask; raise HTTP 400 on mismatch (§3.2 I3) |
-| `POST /api/predict/batch` | Runs pipeline on uploaded CSV; persists alerts; returns job id |
+| `POST /api/predict/batch` | Sync (≤ SYNC_MAX_ROWS): returns `BatchResult` directly; async (> SYNC_MAX_ROWS): returns `{"job_id": str, "flow_count": int}` (§4.4) |
+| `GET /api/predict/{job_id}/status` | Async poll: `{"job_id", "pct", "done"}` — required for files > SYNC_MAX_ROWS |
+| `GET /api/predict/{job_id}/results` | Async result fetch once `done=true`; 409 if still running |
+| Explainability — `top_features` | Every `Alert` includes top-N features by classifier `feature_importances_` (Stage 2) **and** per-feature AE reconstruction error `(x_i − x̂_i)²` (Stage 3); both required by §4.4 Alert schema |
 | `GET /api/alerts` | Paginated alert list; supports `verdict`, `severity` filters |
 | UI — Inference tab | CSV upload; results table (flow id, verdict, confidence, ae_score, severity) |
-| Tests | Batch predict with known-attack fixture produces `KNOWN_ATTACK`; Stage 2 low-confidence flow passes to Stage 3 (confidence gate); SAFE passes through; pagination correct |
+| Tests | Batch predict with known-attack fixture produces `KNOWN_ATTACK`; Stage 2 low-confidence flow passes to Stage 3 (confidence gate); SAFE passes through; `top_features` populated; pagination correct |
 
 ---
 
@@ -146,17 +170,18 @@ Every slice ships its own tests; nothing is marked done without a passing test.
 |-------|-----------------|-------------|
 | 0 — Scaffold | `make dev` starts; `/health` + `/api/preflight` work | 3h |
 | 1 — Model Registry | Training tab dropdowns populated | 4h |
+| 1.5 — EDA | `eda_cicids2017.ipynb`; time-series analysis; informs Slice 2 config | 3h |
 | 2 — Initial Training | Upload CSV → progress → version history | 8h |
-| 3 — Inference | Upload CSV → alerts table | 6h |
+| 3 — Inference | Upload CSV → alerts table (sync + async); `top_features` in every alert | 6h |
 | 4 — Verdict + Dashboard | Verdict submission → Dashboard live | 4h |
 | 5 — AE Fine-tune | Retrain AE → new version | 3h |
 | 6 — PCAP + About + Polish | PCAP upload; About page | 3h |
-| **Total** | | **~31h** |
+| **Total** | | **~34h** |
 
 ## Slice dependencies
 
 ```
-0 ──► 1 ──► 2 ──► 3 ──► 4 ──► 5 ──► 6
+0 ──► 1 ──► 1.5 ──► 2 ──► 3 ──► 4 ──► 5 ──► 6
 ```
 
 Each slice is blocked on the previous; there are no parallel tracks because every slice
