@@ -77,9 +77,9 @@ def test_feature_eng_pipeline_runs():
     settings = get_settings()
     from training.feature_eng.pipeline import run_feature_engineering
     result = run_feature_engineering(train_df, val_df, test_df, settings)
-    X_tr_classifier = result[0]
+    X_train_clf = result[0]
     feat_res = result[-1]
-    assert X_tr_classifier.shape[0] > 0
+    assert X_train_clf.shape[0] > 0
     assert len(feat_res.feature_names) > 0
 
 

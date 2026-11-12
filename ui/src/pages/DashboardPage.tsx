@@ -34,7 +34,11 @@ export default function DashboardPage() {
     setRetrainMsg(null)
     setRetraining(true)
     try {
-      await startTraining({ classifier_type: 'xgboost', detector_type: 'mlp_ae', mode: 'ae_retrain' })
+      await startTraining({
+        classifier_type: activeModel?.classifier_type ?? 'xgboost',
+        detector_type:   activeModel?.detector_type   ?? 'mlp_ae',
+        mode: 'ae_retrain',
+      })
       setRetrainMsg({ text: 'AE retrain started — check the Training tab for progress.', ok: true })
     } catch (e: any) {
       setRetrainMsg({ text: e.message ?? 'Failed to start retrain', ok: false })

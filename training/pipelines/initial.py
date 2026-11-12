@@ -77,7 +77,6 @@ def run_initial_training(
         # 5. Evaluate on held-out test set
         emit("progress", "Evaluating …")
         test_labels, test_confidences = classifier.predict(X_test_clf)
-        test_ae_scores = detector.score(X_test_det)
 
         f1 = float(f1_score(y_test, test_labels, average="weighted", zero_division=0))
         pr_auc = float(average_precision_score(y_test, test_confidences) if len(np.unique(y_test)) > 1 else 0.0)

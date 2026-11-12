@@ -584,7 +584,8 @@ the CUDA torch wheel (`--build-arg TORCH_BUILD_TYPE=cu121` rebuild) and
 ```
 anomaly-flow-detector/
 ├── SPEC.md                         ← this file (authoritative contract)
-├── Makefile                        ← make setup | up | down | train | test | lint
+├── Makefile                        ← make setup | resetup | start | stop | migrate | test | lint
+├── db/                             ← shared sync DB helpers (no api/ dependency — SPEC §9)
 ├── api/
 │   ├── main.py                     ← FastAPI app, lifespan, CORS, router includes
 │   ├── config.py                   ← Settings (pydantic-settings); ONLY place config lives
