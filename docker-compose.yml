@@ -10,6 +10,7 @@ services:
     volumes:
       - ./data:/app/data
       - ./models:/app/models
+      - ./logs:/app/logs
     env_file:
       - path: .env
         required: false
