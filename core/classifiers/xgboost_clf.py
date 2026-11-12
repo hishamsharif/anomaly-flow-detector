@@ -15,10 +15,10 @@ class XGBoostClassifier:
 
     def __init__(self, device: str = "cpu") -> None:
         self._device = device
-        self._model: xgb.XGBClassifier | None = None
+        self._xgb_model: xgb.XGBClassifier | None = None
 
     def fit(self, X: np.ndarray, y: np.ndarray, **kwargs) -> None:
-        self._model = xgb.XGBClassifier(
+        self._xgb_model = xgb.XGBClassifier(
             device=self._device,
             eval_metric="logloss",
             random_state=42,
@@ -26,19 +26,23 @@ class XGBoostClassifier:
             max_depth=6,
             learning_rate=0.1,
         )
-        self._model.fit(X, y)
+        self._xgb_model.fit(X, y)
+
+    @property
+    def feature_importances(self) -> np.ndarray | None:
+        return self._xgb_model.feature_importances_ if self._xgb_model is not None else None
 
     def predict(self, X: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        assert self._model is not None, "fit() first"
-        labels = self._model.predict(X)
-        proba = self._model.predict_proba(X)
-        confidences = proba[np.arange(len(proba)), labels.astype(int)]
+        assert self._xgb_model is not None, "fit() first"
+        labels = self._xgb_model.predict(X)
+        class_proba = self._xgb_model.predict_proba(X)
+        confidences = class_proba[np.arange(len(class_proba)), labels.astype(int)]
         return labels, confidences
 
     def save(self, path: str) -> None:
-        assert self._model is not None, "fit() first"
+        assert self._xgb_model is not None, "fit() first"
         Path(path).mkdir(parents=True, exist_ok=True)
-        joblib.dump(self._model, Path(path) / "classifier.joblib")
+        joblib.dump(self._xgb_model, Path(path) / "classifier.joblib")
 
     def load(self, path: str) -> None:
-        self._model = joblib.load(Path(path) / "classifier.joblib")
+        self._xgb_model = joblib.load(Path(path) / "classifier.joblib")

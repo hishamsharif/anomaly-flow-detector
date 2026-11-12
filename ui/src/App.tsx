@@ -3,12 +3,13 @@ import { Navigate, NavLink, Route, Routes } from 'react-router-dom'
 import { type CheckResult, getHealth, getPreflight } from './api/client'
 import AboutPage from './pages/AboutPage'
 import DashboardPage from './pages/DashboardPage'
+import DatasetPage from './pages/DatasetPage'
 import InferencePage from './pages/InferencePage'
 import TrainingPage from './pages/TrainingPage'
 
 type ConnStatus = 'connecting' | 'connected' | 'error'
 
-const TABS = ['dashboard', 'training', 'inference', 'about'] as const
+const TABS = ['dashboard', 'training', 'inference', 'dataset', 'about'] as const
 
 export default function App() {
   const [connStatus, setConnStatus] = useState<ConnStatus>('connecting')
@@ -86,6 +87,7 @@ export default function App() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/training" element={<TrainingPage />} />
           <Route path="/inference" element={<InferencePage />} />
+          <Route path="/dataset" element={<DatasetPage />} />
           <Route path="/about" element={<AboutPage />} />
         </Routes>
       </main>

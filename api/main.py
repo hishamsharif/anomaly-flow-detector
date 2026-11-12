@@ -10,6 +10,11 @@ from api.db import crud
 from api.routers import health
 from api.routers import models as models_router
 from api.routers import training as training_router
+from api.routers import predict as predict_router
+from api.routers import alerts as alerts_router
+from api.routers import about as about_router
+from api.routers import dashboard as dashboard_router
+from core.store import ModelStore
 from runtime.manifest import resolve_host_environment
 
 settings = get_settings()
@@ -25,8 +30,15 @@ async def lifespan(app: FastAPI):
     try:
         async with AsyncSessionLocal() as db:
             await crud.mark_stale_training_as_failed(db)
+            active = await crud.get_active_model(db)
+        if active and active.path:
+            try:
+                ModelStore.get().load_into_memory(active.path)
+                logger.info("Loaded active model: %s", active.name)
+            except Exception as exc:
+                logger.warning("Active model could not be loaded (%s) — inference will be unavailable until retrained.", exc)
     except Exception as exc:
-        logger.warning("Stale-training cleanup skipped: %s", exc)
+        logger.warning("Startup DB operations skipped: %s", exc)
     yield
     logger.info("Shutting down.")
 
@@ -48,3 +60,7 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(models_router.router)
 app.include_router(training_router.router)
+app.include_router(predict_router.router)
+app.include_router(alerts_router.router)
+app.include_router(dashboard_router.router)
+app.include_router(about_router.router)

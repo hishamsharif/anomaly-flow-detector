@@ -17,8 +17,8 @@ class FeatureEngResult:
     corr_mask: np.ndarray
     selector_mask: np.ndarray
     feature_names: list[str]
-    clf_scaler: StandardScaler
-    det_scaler: StandardScaler
+    classifier_scaler: StandardScaler
+    detector_scaler: StandardScaler
 
 
 def run_feature_engineering(
@@ -44,18 +44,18 @@ def run_feature_engineering(
     y_te = test_df["label"].values
 
     # Step 1 — variance filter
-    vf = VarianceFilter(threshold=settings.variance_threshold)
-    X_tr = vf.fit_transform(X_tr)
-    X_va = vf.transform(X_va)
-    X_te = vf.transform(X_te)
-    names_after_vf = [n for n, keep in zip(feature_cols, vf.mask) if keep]
+    variance_filter = VarianceFilter(threshold=settings.variance_threshold)
+    X_tr = variance_filter.fit_transform(X_tr)
+    X_va = variance_filter.transform(X_va)
+    X_te = variance_filter.transform(X_te)
+    names_after_vf = [n for n, keep in zip(feature_cols, variance_filter.mask) if keep]
 
     # Step 2 — correlation filter
-    cf = CorrelationFilter(threshold=settings.correlation_threshold)
-    X_tr = cf.fit_transform(X_tr, names_after_vf)
-    X_va = cf.transform(X_va)
-    X_te = cf.transform(X_te)
-    names_after_cf = [n for n, keep in zip(names_after_vf, cf.mask) if keep]
+    correlation_filter = CorrelationFilter(threshold=settings.correlation_threshold)
+    X_tr = correlation_filter.fit_transform(X_tr, names_after_vf)
+    X_va = correlation_filter.transform(X_va)
+    X_te = correlation_filter.transform(X_te)
+    names_after_cf = [n for n, keep in zip(names_after_vf, correlation_filter.mask) if keep]
 
     # Step 3 — SMOTE on train only
     if len(np.unique(y_tr)) > 1:
@@ -69,36 +69,36 @@ def run_feature_engineering(
             pass  # SMOTE fails on very small datasets; proceed without
 
     # Step 4 — optional feature selection
-    sel = FeatureSelector(k=settings.feature_selection_k, method=settings.feature_selection_method)
-    X_tr = sel.fit_transform(X_tr, y_tr, names_after_cf)
-    X_va = sel.transform(X_va)
-    X_te = sel.transform(X_te)
-    final_names = sel.selected_names
+    feature_selector = FeatureSelector(k=settings.feature_selection_k, method=settings.feature_selection_method)
+    X_tr = feature_selector.fit_transform(X_tr, y_tr, names_after_cf)
+    X_va = feature_selector.transform(X_va)
+    X_te = feature_selector.transform(X_te)
+    final_names = feature_selector.selected_names
 
     # Step 5a — classifier scaler (fit on train)
-    clf_scaler = StandardScaler()
-    X_tr_classifier = clf_scaler.fit_transform(X_tr)
-    X_va_classifier = clf_scaler.transform(X_va)
-    X_te_classifier = clf_scaler.transform(X_te)
+    classifier_scaler = StandardScaler()
+    X_tr_classifier = classifier_scaler.fit_transform(X_tr)
+    X_va_classifier = classifier_scaler.transform(X_va)
+    X_te_classifier = classifier_scaler.transform(X_te)
 
     # Step 5b — detector scaler (fit on benign-only train)
     benign_mask = y_tr == 0
     X_tr_benign = X_tr[benign_mask]
-    det_scaler = StandardScaler()
+    detector_scaler = StandardScaler()
     if len(X_tr_benign) == 0:
         X_tr_benign = X_tr
-    det_scaler.fit(X_tr_benign)
-    X_tr_detector = det_scaler.transform(X_tr_benign)
-    X_va_detector = det_scaler.transform(X_va)
-    X_te_detector = det_scaler.transform(X_te)
+    detector_scaler.fit(X_tr_benign)
+    X_tr_detector = detector_scaler.transform(X_tr_benign)
+    X_va_detector = detector_scaler.transform(X_va)
+    X_te_detector = detector_scaler.transform(X_te)
 
     result = FeatureEngResult(
-        variance_mask=vf.mask,
-        corr_mask=cf.mask,
-        selector_mask=sel.mask,
+        variance_mask=variance_filter.mask,
+        corr_mask=correlation_filter.mask,
+        selector_mask=feature_selector.mask,
         feature_names=final_names,
-        clf_scaler=clf_scaler,
-        det_scaler=det_scaler,
+        classifier_scaler=classifier_scaler,
+        detector_scaler=detector_scaler,
     )
 
     return (

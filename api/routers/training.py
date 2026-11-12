@@ -12,7 +12,8 @@ from api.database import get_db
 from api.db import crud
 from api.db.models import ModelVersion
 from api.schemas import TrainingJobResponse, TrainingStartRequest, TrainingStatusResponse
-from core.registry import CLASSIFIER_LABELS, CLASSIFIERS, DETECTOR_LABELS, DETECTORS
+from core.registry import ANOMALY_DETECTOR_REGISTRY, CLASSIFIER_LABELS, CLASSIFIER_REGISTRY, DETECTOR_LABELS
+from training.pipelines.fine_tune import run_ae_fine_tune
 from training.pipelines.initial import run_initial_training
 
 router = APIRouter(prefix="/api/training", tags=["training"])
@@ -23,14 +24,28 @@ async def start_training(
     body: TrainingStartRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    if body.classifier_type not in CLASSIFIERS:
+    if body.classifier_type not in CLASSIFIER_REGISTRY:
         raise HTTPException(status_code=422, detail=f"Unknown classifier_type: {body.classifier_type}")
-    if body.detector_type not in DETECTORS:
+    if body.detector_type not in ANOMALY_DETECTOR_REGISTRY:
         raise HTTPException(status_code=422, detail=f"Unknown detector_type: {body.detector_type}")
     if jobs.is_training():
         raise HTTPException(status_code=409, detail="A training job is already running")
 
     settings = get_settings()
+
+    prev_path: str | None = None
+    if body.mode == "ae_retrain":
+        active = await crud.get_active_model(db)
+        if active is None:
+            raise HTTPException(status_code=409, detail="No active model — run initial training first")
+        eligible = await crud.get_eligible_verdict_count(db)
+        if eligible < settings.fine_tune_k_threshold:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Insufficient verdicts: {eligible} of {settings.fine_tune_k_threshold} required",
+            )
+        prev_path = active.path
+
     run_id = str(uuid4())
 
     version = ModelVersion(
@@ -54,19 +69,23 @@ async def start_training(
     def _emit(event: str, data: str) -> None:
         jobs.emit(run_id, event, data)
 
-    jobs.launch(
-        run_id,
-        body.mode,
-        run_initial_training,
-        run_id,
-        version.id,
-        version_name,
-        body.classifier_type,
-        body.detector_type,
-        settings,
-        _emit,
-        db_url,
-    )
+    if body.mode == "ae_retrain":
+        # Fetch analyst-confirmed benign flows in the router (async context) before handing
+        # off to the background thread — keeps training/ free of api/db imports (SPEC §9).
+        analyst_flows = await crud.async_get_confirmed_benign_features(db)
+        jobs.launch_training_job(
+            run_id, body.mode, run_ae_fine_tune,
+            run_id, version.id, version_name,
+            body.classifier_type, body.detector_type,
+            prev_path, settings, _emit, db_url, analyst_flows,
+        )
+    else:
+        jobs.launch_training_job(
+            run_id, body.mode, run_initial_training,
+            run_id, version.id, version_name,
+            body.classifier_type, body.detector_type,
+            settings, _emit, db_url,
+        )
 
     return TrainingJobResponse(run_id=run_id)
 

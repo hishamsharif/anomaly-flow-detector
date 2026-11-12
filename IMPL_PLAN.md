@@ -14,20 +14,21 @@ Every slice ships its own tests; nothing is marked done without a passing test.
 |-----------------|------|
 | Folder structure | Create all dirs per §9; add `.gitkeep` where empty |
 | `requirements.txt` / `pyproject.toml` | Pin all deps; include `cu121` torch wheel |
-| `Makefile` | `dev`, `test`, `export-spec`, `migrate`, `clean-models` targets |
+| `Makefile` | `up` / `down` (stack), `dev` (hot-reload), `train`, `test`, `lint`, `export-spec`, `migrate`, `clean-models` targets |
 | `api/config.py` | `Settings` singleton; all config vars from §7 |
 | `api/database.py` | async SQLAlchemy engine; session factory |
-| `api/main.py` | FastAPI app, lifespan (loads active model on startup), router mounts |
+| `api/main.py` | FastAPI app, lifespan: marks stale `training` rows → `failed` on startup (ADR-07 crash recovery), then loads active model into memory; mounts all routers |
 | `runtime/probe.py` | `probe_cuda()`, `probe_docker()`, `probe_images()` → `HostEnvironment` dataclass |
 | `runtime/manifest.py` | `HostEnvironment` singleton — resolved once at startup via `probe.py` |
 | `runtime/preflight.py` | `build_preflight_report()` → `{cuda, docker, images}` with `ok`/`warn`/`blocker` levels |
 | `GET /health` | Returns `{"status": "ok", "model_loaded": false, "db_ok": true}` |
 | `GET /api/preflight` | Calls `build_preflight_report()`; returns structured check results |
 | `docker-compose.yml` | App + Vite dev server (SQLite — no Postgres container needed; see ADR-09) |
-| Alembic init | `alembic.ini` + `alembic/env.py`; empty initial migration |
-| UI shell | React + Vite + Tailwind; navbar + tab placeholders; hits `/health` + `/api/preflight` |
-| UI — prerequisites screen | Renders on load if any `blocker` present; shows fix instructions |
-| `tests/conftest.py` | `app` fixture (TestClient); `tmp_model_dir` fixture |
+| `.env.demo` | Committed reference file with working defaults for all §7 config vars; developers copy to `.env` to get started |
+| Alembic init | `alembic.ini` + `alembic/env.py`; empty baseline migration |
+| SPA shell | React 18 + TypeScript + Vite 5 + Tailwind (ADR-17); navbar + 4 tab stubs (Dashboard, Training, Inference, About); polls `GET /health` and `GET /api/preflight` on load |
+| UI — preflight screen | Renders if any check is `blocker`; lists fix instructions per failing check; flow halted until resolved |
+| `tests/conftest.py` | `app` fixture (TestClient); `client` async fixture (AsyncClient via httpx for async endpoint tests); `tmp_model_dir` fixture |
 | Tests | `test_health.py` — 200 OK; `test_preflight.py` — returns all three check keys |
 
 ---
@@ -38,9 +39,9 @@ Every slice ships its own tests; nothing is marked done without a passing test.
 
 | File / component | Work |
 |-----------------|------|
-| `api/schemas.py` | `ModelVersionResponse` Pydantic schema |
-| `core/base.py` | `Classifier` + `Detector` protocols |
-| `core/registry.py` | `CLASSIFIERS` + `DETECTORS` dicts |
+| `api/schemas.py` | Establishes the centralised Pydantic schema module (SDD contract layer, ADR-18); adds `ModelVersionResponse` |
+| `core/base.py` | `BaseClassifier` + `BaseAnomalyDetector` Protocol classes (structural subtyping, ADR-16) |
+| `core/registry.py` | `CLASSIFIER_REGISTRY` + `ANOMALY_DETECTOR_REGISTRY` dicts; one line to register a new model type |
 | `api/db/models.py` | `ModelVersion` ORM (id, name, classifier_type, detector_type, status, path, metrics_json, created_at) |
 | Alembic migration | `model_versions` table |
 | `GET /api/models/available-types` | Returns registered classifier + detector names |
@@ -74,23 +75,24 @@ Every slice ships its own tests; nothing is marked done without a passing test.
 
 ### Slice 2 — Initial Training Pipeline (~8h)
 
-**Deliverable:** User uploads a CSV on the Training tab, clicks Start, watches the SSE progress bar fill, then sees the new version appear in history.
+**Deliverable:** User clicks Start Training; CIC-IDS2017 is loaded from `BUNDLED_DATASET_DIR`, the full pipeline runs with SSE progress streaming, and the trained model version appears in history.
 
 | File / component | Work |
 |-----------------|------|
 | `training/data_loader.py` | DuckDB CSV scan; returns `pd.DataFrame` |
 | `training/feature_eng/variance_filter.py` | Drop features ≤ `VARIANCE_THRESHOLD` |
 | `training/feature_eng/correlation_filter.py` | Drop correlated features ≥ `CORR_THRESHOLD` |
-| `training/feature_eng/selector.py` | MI / RFE selector (saves `variance_mask`, `corr_mask`) |
-| `training/feature_eng/pipeline.py` | Chains the four steps: variance → correlation → selector → **SMOTE** (Step 4, §5.1) |
+| `training/feature_eng/selector.py` | SelectKBest (mutual information) or RF-RFE feature selector; outputs `selector_mask` |
+| `training/feature_eng/pipeline.py` | Chains all steps (§5.1 + §2b): variance filter → correlation filter → **SMOTE** (training split only, ADR-14) → feature selector → dual scalers (classifier path + detector benign-only path) |
 | `core/classifiers/xgboost_clf.py` | XGBoost; respects `DEVICE` config var |
 | `core/detectors/mlp_ae.py` | MLP-AE; PyTorch; respects `DEVICE` config var |
-| `training/pipelines/initial.py` | Full pipeline: load → feature eng → fit CLF → fit AE → save |
-| `core/store.py` | `ModelStore`: `save(version)` / `load(id)` / `set_active(id)` |
-| `api/jobs.py` | SSE bridge; yields training log lines |
-| `POST /api/training/start` | Launches training job; returns `{"job_id": "..."}` |
-| `GET /api/training/{run_id}/events` | SSE endpoint; streams job progress |
-| `GET /api/models` | Now returns the saved version |
+| `training/pipelines/initial.py` | Orchestrates full training: data load → feature engineering → fit XGBoost classifier → fit + calibrate MLP-AE on benign-only data → evaluate on held-out test split → save artifacts atomically (ADR-12) → auto-promote to active |
+| `core/store.py` | `ModelStore`: `save(version)` / `load(id)` / `set_active(id)`; saves all three masks (`variance_mask`, `corr_mask`, `selector_mask`) and both scalers |
+| `api/jobs.py` | In-process thread-job bridge: `ThreadPoolExecutor(max_workers=1)` + append-only event log with cursor replay; SSE keep-alive heartbeat every 30 s (ADR-07, ADR-08) |
+| `POST /api/training/start` | 409 when a job is already running; launches job via `launch_training_job()`; returns `{"run_id": str}` |
+| `GET /api/training/{run_id}/events` | SSE stream; replays buffered event history on reconnect |
+| `GET /api/training/{run_id}/status` | Poll fallback when SSE is unavailable; returns `{"run_id", "pct", "mode", "started_at"}` |
+| `GET /api/models` | Now returns the saved version; response shape: `{"items": ModelVersion[], "total": int}` |
 | UI — Training tab | Start button; SSE progress bar; version history table |
 | Tests | Training completes on a 1 000-row fixture CSV; artifacts saved; version appears |
 
@@ -104,19 +106,19 @@ Every slice ships its own tests; nothing is marked done without a passing test.
 
 | File / component | Work |
 |-----------------|------|
-| `core/rule_engine.py` | Stage 1 deterministic rules; CVE sigs, allowlisted IPs |
-| `inference/pipeline.py` | 3-stage runner: rules → classifier → detector → consensus |
-| `inference/adapters/csv_adapter.py` | CSV → `List[FeatureRow]` |
+| `core/rule_engine.py` | Stage 1 deterministic rules: exits immediately as `KNOWN_ATTACK` on CVE signatures / known-malicious IPs; exits as `SAFE` on allowlisted assets; ambiguous flows pass to Stage 2 |
+| `inference/pipeline.py` | 3-stage inference pipeline (§5.2): Stage 1 rules (always takes precedence) → Stage 2 XGBoost (exits `KNOWN_ATTACK` when confidence ≥ `CLF_CONFIDENCE_THRESHOLD`) → Stage 3 MLP-AE (always runs; finalises `NOVEL_ATTACK` or `SAFE` when Stage 2 passed through) |
+| `inference/adapters/csv_adapter.py` | CSV → validated `List[FeatureRow]`; validates column names against `feature_names.json` (invariant I3); unrecognised columns returned in `BatchResult.rejected_rows` |
 | `api/db/models.py` | `Alert` ORM (Alembic migration) |
 | `api/schemas.py` | `AlertResponse`, `BatchPredictResponse` schemas |
-| I3 shape check | `inference/pipeline.py`: validate feature vector length against saved mask; raise HTTP 400 on mismatch (§3.2 I3) |
+| I3 shape check | `csv_adapter.py`: validates input column names match `feature_names.json`; missing/extra columns → row added to `rejected_rows` with reason (§3.2 I3) |
 | `POST /api/predict/batch` | Sync (≤ SYNC_MAX_ROWS): returns `BatchResult` directly; async (> SYNC_MAX_ROWS): returns `{"job_id": str, "flow_count": int}` (§4.4) |
 | `GET /api/predict/{job_id}/status` | Async poll: `{"job_id", "pct", "done"}` — required for files > SYNC_MAX_ROWS |
 | `GET /api/predict/{job_id}/results` | Async result fetch once `done=true`; 409 if still running |
-| Explainability — `top_features` | Every `Alert` includes top-N features by classifier `feature_importances_` (Stage 2) **and** per-feature AE reconstruction error `(x_i − x̂_i)²` (Stage 3); both required by §4.4 Alert schema |
+| Explainability — `top_features` | Stage 2: top-N features ranked by `feature_importances_` × scaled input value (local attribution proxy, §5.2); Stage 3: top-N features by per-feature reconstruction error `(x_i − x̂_i)²` (ADR-13); both fields in every `Alert` per §4.4 schema |
 | `GET /api/alerts` | Paginated alert list; supports `verdict`, `severity` filters |
 | UI — Inference tab | CSV upload; results table (flow id, verdict, confidence, ae_score, severity) |
-| Tests | Batch predict with known-attack fixture produces `KNOWN_ATTACK`; Stage 2 low-confidence flow passes to Stage 3 (confidence gate); SAFE passes through; `top_features` populated; pagination correct |
+| Tests | Batch predict with known-attack fixture produces `KNOWN_ATTACK`; Stage 2 low-confidence flow passes to Stage 3 (confidence gate); SAFE passes through; `top_features` populated; pagination correct; 409 when no active model; 413 when file exceeds MAX_UPLOAD_MB |
 
 ---
 
@@ -126,26 +128,26 @@ Every slice ships its own tests; nothing is marked done without a passing test.
 
 | File / component | Work |
 |-----------------|------|
-| `POST /api/alerts/{id}/verdict` | Accepts `{verdict, notes}`; sets `analyst_verdict`, updates `retrain_eligible` |
+| `POST /api/alerts/{id}/verdict` | Accepts `{verdict, notes}`; sets `analyst_verdict`, updates `retrain_eligible`; 409 when verdict already submitted (invariant I2) |
 | `GET /api/alerts/verdict-count` | Returns `{"eligible": int, "threshold": int, "unlocked": bool}` |
 | `GET /api/dashboard/summary` | Returns alert counts by verdict + severity |
 | UI — Dashboard | Alert summary cards; verdict progress bar; "Retrain AE" button (disabled until unlocked) |
 | UI — Inference tab | Confirm / Correct buttons on each row |
-| Tests | Verdict submission persists; retrain-status `unlocked` flips at threshold |
+| Tests | Verdict submission persists; retrain-status `unlocked` flips at threshold; 409 on second verdict submission |
 
 ---
 
-### Slice 5 — AE Fine-tune (~3h)
+### Slice 5 — AE Fine-tune (~4h)
 
 **Deliverable:** User clicks "Retrain AE" on the Dashboard and watches the AE retrain on analyst-confirmed flows; new version appears.
 
 | File / component | Work |
 |-----------------|------|
-| `training/pipelines/fine_tune.py` | Loads confirmed + override flows; freezes CLF weights; retrains AE only |
-| `POST /api/training/start` (mode=`ae_retrain`) | Launches AE fine-tune job; SSE progress (reuses `api/jobs.py`) |
+| `training/pipelines/fine_tune.py` | Full §5.3 pipeline — (1) fetch eligible benign flows: `confirmed` on SAFE alerts + `override` on any alert; (2) combine with `AE_REPLAY_BUFFER_FRACTION × historical benign data` (ADR-06 replay buffer); (3) load previous AE checkpoint, **freeze encoder** for `AE_FREEZE_EPOCHS` epochs; (4) unfreeze + fine-tune remaining epochs; (5) recompute AE threshold on val-benign (p`AE_ANOMALY_THRESHOLD_PERCENTILE`); (6) **regression gate** — compare new FAR + recall vs previous version; emit WARN if `far_increase > FAR_GATE_MAX` or `recall_drop > RECALL_GATE_MAX` (advisory only, never blocks); (7) copy `classifier.joblib` unchanged from previous version (invariant I5) |
+| `POST /api/training/start` (mode=`ae_retrain`) | **409** when no active model; **409** when `eligible_verdicts < FINE_TUNE_K_THRESHOLD` (invariant I4); launches fine-tune job; SSE progress (reuses `api/jobs.py`) |
 | `POST /api/models/{id}/promote` | Promotes a version to active |
-| UI — Dashboard | Retrain AE button triggers fine-tune; version history updates |
-| Tests | Fine-tune runs on eligible alerts; new version saved; promotion updates active |
+| UI — Dashboard | Retrain AE button triggers fine-tune; version history updates; regression gate WARN displayed when advisory check fired |
+| Tests | 409 when eligible_verdicts < threshold; fine-tune runs on eligible alerts; replay buffer included in training data; encoder frozen for first N epochs; AE threshold recalibrated on val-benign; regression gate fires WARN on FAR increase; `classifier.joblib` byte-identical to previous version; new version saved; promotion updates active |
 
 ---
 
@@ -156,7 +158,8 @@ Every slice ships its own tests; nothing is marked done without a passing test.
 | File / component | Work |
 |-----------------|------|
 | `inference/adapters/pcap_adapter.py` | PCAP → `List[FeatureRow]` (dpkt or scapy) |
-| `cli/predict.py` | Standalone prediction script; loads active model, runs CSV through pipeline, prints results |
+| `predict.py` (root) | Standalone examiner; loads active model once, batch-scores CSV through the full 3-stage pipeline without HTTP overhead; target ≥ 10k flows/s on GPU (28k achieved in V1) |
+| `docs/architecture.md` | Human-readable architecture doc: 3-stage pipeline diagram, data-flow, component responsibilities |
 | `GET /api/about` | Returns system info, active model version, config vars |
 | UI — Inference tab | PCAP upload alongside CSV upload |
 | UI — About page | Renders `/api/about` data; copy (labels, descriptions) should track spec language |
@@ -174,7 +177,7 @@ Every slice ships its own tests; nothing is marked done without a passing test.
 | 2 — Initial Training | Upload CSV → progress → version history | 8h |
 | 3 — Inference | Upload CSV → alerts table (sync + async); `top_features` in every alert | 6h |
 | 4 — Verdict + Dashboard | Verdict submission → Dashboard live | 4h |
-| 5 — AE Fine-tune | Retrain AE → new version | 3h |
+| 5 — AE Fine-tune | Retrain AE → new version (replay buffer + encoder freeze + regression gate) | 4h |
 | 6 — PCAP + About + Polish | PCAP upload; About page | 3h |
 | **Total** | | **~34h** |
 

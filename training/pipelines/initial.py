@@ -7,12 +7,11 @@ from typing import Callable
 import numpy as np
 from sklearn.metrics import (
     average_precision_score,
-    confusion_matrix,
     f1_score,
 )
 
 from api.db.crud import sync_set_active, sync_update_model_version
-from core.registry import CLASSIFIERS, DETECTORS
+from core.registry import ANOMALY_DETECTOR_REGISTRY, CLASSIFIER_REGISTRY
 from core.store import ModelStore
 from training.data_loader import load_dataset
 from training.feature_eng.pipeline import run_feature_engineering
@@ -28,7 +27,7 @@ def run_initial_training(
     emit: Callable[[str, str], None],
     db_url: str,
 ) -> None:
-    start = time.time()
+    training_start_time = time.time()
     try:
         # 1. Load data
         emit("progress", "Loading CIC-IDS2017 …")
@@ -57,35 +56,37 @@ def run_initial_training(
                 device = "cpu"
 
         # 3. Fit classifier
-        emit("progress", f"Training {CLASSIFIERS[classifier_type].label} …")
-        clf_cls = CLASSIFIERS[classifier_type]
-        clf = clf_cls(device=device)
-        clf.fit(X_tr_classifier, y_tr)
+        emit("progress", f"Training {CLASSIFIER_REGISTRY[classifier_type].label} …")
+        classifier_class = CLASSIFIER_REGISTRY[classifier_type]
+        classifier = classifier_class(device=device)
+        classifier.fit(X_tr_classifier, y_tr)
         emit("step", "60")
 
         # 4. Fit AE on benign-only train, calibrate on val-benign
         emit("progress", "Training MLP Autoencoder on benign flows …")
-        ae_cls = DETECTORS[detector_type]
-        ae = ae_cls(device=device)
-        ae.fit(X_tr_detector)
+        detector_class = ANOMALY_DETECTOR_REGISTRY[detector_type]
+        detector = detector_class(device=device)
+        detector.fit(X_tr_detector)
         benign_val_mask = y_va == 0
         X_va_benign = X_va_detector[benign_val_mask] if benign_val_mask.any() else X_va_detector
-        ae.calibrate_threshold(X_va_benign, percentile=settings.ae_anomaly_threshold_percentile)
+        detector.calibrate_threshold(X_va_benign, percentile=settings.ae_anomaly_threshold_percentile)
+        # p75 of val-benign errors → severity threshold for NOVEL_ATTACK (critical vs high, §3.1)
+        novel_critical_threshold = float(np.percentile(detector.score(X_va_benign), 75.0))
         emit("step", "80")
 
         # 5. Evaluate on test set
         emit("progress", "Evaluating …")
-        labels_te, confs_te = clf.predict(X_te_classifier)
-        ae_scores_te = ae.score(X_te_detector)
+        test_labels, test_confidences = classifier.predict(X_te_classifier)
+        test_ae_scores = detector.score(X_te_detector)
 
-        f1 = float(f1_score(y_te, labels_te, average="weighted", zero_division=0))
-        pr_auc = float(average_precision_score(y_te, confs_te) if len(np.unique(y_te)) > 1 else 0.0)
+        f1 = float(f1_score(y_te, test_labels, average="weighted", zero_division=0))
+        pr_auc = float(average_precision_score(y_te, test_confidences) if len(np.unique(y_te)) > 1 else 0.0)
 
         # FAR = FP / (FP + TN)  on BENIGN rows
         benign_te = y_te == 0
         if benign_te.any():
-            fp = int(((labels_te == 1) & benign_te).sum())
-            tn = int(((labels_te == 0) & benign_te).sum())
+            fp = int(((test_labels == 1) & benign_te).sum())
+            tn = int(((test_labels == 0) & benign_te).sum())
             far = fp / (fp + tn) if (fp + tn) > 0 else 0.0
         else:
             far = 0.0
@@ -93,13 +94,13 @@ def run_initial_training(
         # AMR = FN / (FN + TP) on attack rows
         attack_te = y_te == 1
         if attack_te.any():
-            fn = int(((labels_te == 0) & attack_te).sum())
-            tp = int(((labels_te == 1) & attack_te).sum())
+            fn = int(((test_labels == 0) & attack_te).sum())
+            tp = int(((test_labels == 1) & attack_te).sum())
             amr = fn / (fn + tp) if (fn + tp) > 0 else 0.0
         else:
             amr = 0.0
 
-        known_attack_f1 = float(f1_score(y_te, labels_te, pos_label=1, average="binary", zero_division=0))
+        known_attack_f1 = float(f1_score(y_te, test_labels, pos_label=1, average="binary", zero_division=0))
 
         metrics = {
             "classifier_type": classifier_type,
@@ -110,8 +111,9 @@ def run_initial_training(
             "pr_auc": round(pr_auc, 6),
             "known_attack_f1": round(known_attack_f1, 6),
             "n_features_final": len(feat_result.feature_names),
-            "ae_threshold": round(ae.threshold, 6),
-            "training_duration_s": round(time.time() - start, 1),
+            "ae_threshold": round(detector.threshold, 6),
+            "novel_critical_threshold": round(novel_critical_threshold, 6),
+            "training_duration_s": round(time.time() - training_start_time, 1),
             "train_rows": len(y_tr),
             "val_rows": len(y_va),
             "test_rows": len(y_te),
@@ -124,8 +126,8 @@ def run_initial_training(
         artifact_path = store.save_artifacts(
             run_id=run_id,
             name=version_name.replace(" ", "_").replace("/", "-").replace("—", "-"),
-            clf=clf,
-            ae=ae,
+            clf=classifier,
+            ae=detector,
             feat_result=feat_result,
             metrics=metrics,
             artifact_dir=settings.model_artifact_dir,

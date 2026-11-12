@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   getAvailableTypes,
   getModels,
+  promoteModel,
   startTraining,
   subscribeToTraining,
   type AvailableTypesResponse,
@@ -21,6 +22,7 @@ export default function TrainingPage() {
   const [classifier, setClassifier] = useState('')
   const [detector, setDetector] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [promotingId, setPromotingId] = useState<number | null>(null)
 
   // Training state
   const [training, setTraining] = useState(false)
@@ -51,6 +53,19 @@ export default function TrainingPage() {
     getModels()
       .then(data => setModels(data.items))
       .catch(() => {})
+
+  const handlePromote = async (id: number) => {
+    setPromotingId(id)
+    setError(null)
+    try {
+      await promoteModel(id)
+      await refreshModels()
+    } catch (e: any) {
+      setError(e.message ?? 'Failed to promote model')
+    } finally {
+      setPromotingId(null)
+    }
+  }
 
   const handleStart = async () => {
     setError(null)
@@ -178,7 +193,7 @@ export default function TrainingPage() {
               <th className="text-left px-4 py-3">Status</th>
               <th className="text-left px-4 py-3">F1</th>
               <th className="text-left px-4 py-3">FAR</th>
-              <th className="text-left px-4 py-3">Recall</th>
+              <th className="text-left px-4 py-3">Miss Rate ↓</th>
               <th className="text-left px-4 py-3">Created</th>
               <th className="px-4 py-3"></th>
             </tr>
@@ -204,12 +219,17 @@ export default function TrainingPage() {
                   <td className="px-4 py-3 text-gray-300">{m.metrics?.amr?.toFixed(3) ?? '—'}</td>
                   <td className="px-4 py-3 text-gray-400">{new Date(m.created_at).toLocaleDateString()}</td>
                   <td className="px-4 py-3">
-                    <button
-                      disabled
-                      className="text-xs text-blue-400 opacity-40 cursor-not-allowed"
-                    >
-                      Promote
-                    </button>
+                    {m.status !== 'active' && m.status !== 'training' ? (
+                      <button
+                        onClick={() => handlePromote(m.id)}
+                        disabled={promotingId === m.id}
+                        className="text-xs text-blue-400 hover:text-blue-300 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {promotingId === m.id ? '…' : 'Promote'}
+                      </button>
+                    ) : (
+                      <span className="text-xs text-gray-600">—</span>
+                    )}
                   </td>
                 </tr>
               ))

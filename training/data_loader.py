@@ -11,9 +11,9 @@ def _load_csvs(paths: list[Path]) -> pd.DataFrame:
     if not paths:
         return pd.DataFrame()
     quoted = ", ".join(f"'{p}'" for p in paths)
-    con = duckdb.connect()
-    df = con.execute(f"SELECT * FROM read_csv_auto([{quoted}], header=true, ignore_errors=true)").df()
-    con.close()
+    db_connection = duckdb.connect()
+    df = db_connection.execute(f"SELECT * FROM read_csv_auto([{quoted}], header=true, ignore_errors=true)").df()
+    db_connection.close()
     return df
 
 
@@ -35,8 +35,8 @@ def _clean(df: pd.DataFrame) -> pd.DataFrame:
 
 def load_dataset(dataset_dir: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Return (train_df, val_df, test_df); each has numeric features + 'label' (0/1)."""
-    base = Path(dataset_dir)
-    all_csvs = sorted(base.glob("*.csv"))
+    dataset_dir_path = Path(dataset_dir)
+    all_csvs = sorted(dataset_dir_path.glob("*.csv"))
     if not all_csvs:
         raise FileNotFoundError(f"No CSV files found in {dataset_dir}")
 
@@ -46,10 +46,10 @@ def load_dataset(dataset_dir: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataF
 
     # Fallback: if no Friday split, use 70/15/15 on train_paths
     if not val_paths and not test_paths:
-        all_df = _clean(_load_csvs(train_paths))
-        n = len(all_df)
-        t, v = int(n * 0.7), int(n * 0.85)
-        return all_df.iloc[:t], all_df.iloc[t:v], all_df.iloc[v:]
+        full_df = _clean(_load_csvs(train_paths))
+        n = len(full_df)
+        train_end_idx, val_end_idx = int(n * 0.7), int(n * 0.85)
+        return full_df.iloc[:train_end_idx], full_df.iloc[train_end_idx:val_end_idx], full_df.iloc[val_end_idx:]
 
     train_df = _clean(_load_csvs(train_paths)) if train_paths else pd.DataFrame()
     val_df   = _clean(_load_csvs(val_paths))   if val_paths   else pd.DataFrame()

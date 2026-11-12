@@ -3,6 +3,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.database import get_db
+from core.store import ModelStore
 from runtime.manifest import get_host_environment
 from runtime.preflight import build_preflight_report
 
@@ -17,7 +18,8 @@ async def health_check(db: AsyncSession = Depends(get_db)):
         db_ok = True
     except Exception:
         pass
-    return {"status": "ok", "model_loaded": False, "db_ok": db_ok}
+    model_loaded = ModelStore.get().get_active() is not None
+    return {"status": "ok", "model_loaded": model_loaded, "db_ok": db_ok}
 
 
 @router.get("/api/preflight")

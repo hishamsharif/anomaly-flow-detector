@@ -320,11 +320,20 @@ GET /api/alerts/verdict-count
 ```
 GET /api/dashboard/summary
 → 200  {
-    "total_24h":           int,   // all alerts in last 24 h
+    "total_24h":           int,   // alerts inserted in the last 24 h
     "safe_24h":            int,
     "known_attack_24h":    int,
     "novel_attack_24h":    int,
-    "pending_verdict_24h": int    // alerts with analyst_verdict = null
+    "pending_verdict_24h": int,   // alerts with analyst_verdict = null in last 24 h
+    "by_severity": {
+      "low":      int,
+      "medium":   int,
+      "high":     int,
+      "critical": int             // severity breakdown — all-time cumulative
+    },
+    "verdict_eligible":    int,   // all-time cumulative analyst verdicts (confirmed + override)
+    "verdict_threshold":   int,   // K threshold to unlock AE fine-tune
+    "retrain_unlocked":    bool   // verdict_eligible >= verdict_threshold
   }
 ```
 
@@ -382,6 +391,7 @@ models/<name>/
   det_scaler.joblib       scaler for detector data path
   variance_mask.npy       boolean mask from VarianceThreshold step
   corr_mask.npy           boolean mask from correlation pruning step
+  selector_mask.npy       boolean mask from feature selection step (all-True when FEATURE_SELECTION_K=0)
   feature_names.json      ordered list of final selected feature names
   metadata.json           metrics + full config snapshot at training time
 ```
@@ -398,11 +408,13 @@ models/<name>/
 
 **Feature engineering steps (Steps 1–3 produce a shared reduced feature set; Steps 4a/4b are separate scaling paths for each model):**
 ```
-Step 1 — VarianceThreshold(threshold=VARIANCE_THRESHOLD)
-Step 2 — Drop one feature from each pair with |Pearson r| > CORRELATION_THRESHOLD
-Step 3 — Optional: SelectKBest(k=FEATURE_SELECTION_K, score_func=mutual_info)
-          or RF-RFE (FEATURE_SELECTION_METHOD=rfe)
-          or skip (FEATURE_SELECTION_METHOD=none / k=0)
+Step 1  — VarianceThreshold(threshold=VARIANCE_THRESHOLD)
+Step 2  — Drop one feature from each pair with |Pearson r| > CORRELATION_THRESHOLD
+Step 2b — SMOTE (training split only): oversample minority attack classes up to SMOTE_MAX_PER_CLASS
+           val and test splits are never resampled (ADR-14)
+Step 3  — Optional: SelectKBest(k=FEATURE_SELECTION_K, score_func=mutual_info)
+           or RF-RFE (FEATURE_SELECTION_METHOD=rfe)
+           or skip (FEATURE_SELECTION_METHOD=none / k=0)
 Step 4a — clf_scaler (determined by classifier PreprocessingSpec.preferred_scalers)
 Step 4b — det_scaler (determined by detector PreprocessingSpec.preferred_scalers)
 ```
@@ -419,13 +431,13 @@ Stage 1 — Rule Engine
   → pass to Stage 2 if ambiguous (no rule matched either end of the certainty spectrum)
 
 Stage 2 — Known-Attack Classifier (XGBoost)
-  Apply variance_mask → corr_mask → clf_scaler
+  Apply variance_mask → corr_mask → selector_mask → clf_scaler
   Predict: label, confidence
   → record KNOWN_ATTACK verdict if label ≠ BENIGN and confidence ≥ CLF_CONFIDENCE_THRESHOLD
   → record BENIGN verdict otherwise (label = BENIGN, or confidence < CLF_CONFIDENCE_THRESHOLD)
 
 Stage 3 — MLP Anomaly Detector (always runs; ae_score populated on every alert)
-  Apply variance_mask → corr_mask → det_scaler
+  Apply variance_mask → corr_mask → selector_mask → det_scaler
   Compute reconstruction error (ae_score)
   → record NOVEL_ATTACK if ae_score > ae_threshold
   → record SAFE otherwise
@@ -460,18 +472,20 @@ Consensus:
 
 ## 6. UI Contract
 
-**SPA with 4 tabs — React 18 + TypeScript + Vite 5 + Tailwind:**
+**SPA with 5 tabs — React 18 + TypeScript + Vite 5 + Tailwind:**
 
 ### Dashboard
 - Active model name + status badge
 - Alert summary for the last 24 hours: total / SAFE / KNOWN_ATTACK / NOVEL_ATTACK
+- Pending-verdict count for the last 24 hours
+- Severity breakdown (all-time): low / medium / high / critical
 - Verdict progress bar: `eligible / threshold` with "Retrain AE" button (enabled when `unlocked=true`)
 
 ### Training
 - Classifier dropdown + Detector dropdown (populated from `GET /api/models/available-types`)
 - "Start Training" button — disabled while any job is running
 - SSE progress bar (0–100%) with live log lines below it
-- Model version history table: name / status / F1 / FAR / Recall / created_at / Promote button
+- Model version history table: name / status / F1 / FAR / Miss Rate (AMR) ↓ / created_at / Promote button
 
 ### Inference
 - Drag-and-drop or click-to-upload for CSV or PCAP
@@ -480,10 +494,15 @@ Consensus:
 - Click a row → expand inline: top features, verdict buttons (Confirm / Override / Uncertain / Escalate)
 - Verdict buttons disabled once a verdict is set
 
+### Dataset
+- CIC-IDS2017 overview: 2.83M flows, 15 attack classes, 5-day capture
+- Class distribution chart (log scale — illustrates BENIGN dominance)
+- Attack volume by capture day (stacked bar — shows Fri-PM DDoS/PortScan concentration)
+- Feature correlation heatmap (20 × 20 — motivates the correlation-filter step in §5.1)
+
 ### About
 - System overview: what AFD does and why
 - 3-stage pipeline diagram (text/ASCII is fine)
-- Dataset info (CIC-IDS2017: 2.8M flows, 15 attack classes, day-based split)
 - Tech stack list
 
 **Behavioral guarantees:**
