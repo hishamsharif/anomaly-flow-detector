@@ -172,6 +172,21 @@ Tests use `httpx.AsyncClient` with in-process ASGI transport — no live server 
 
 ---
 
+## Persistent Directories
+
+These directories are bind-mounted out of the container to the project root — they survive `make stop` / `make run` and can be inspected directly on the host.
+
+| Directory | Contents | Access |
+|---|---|---|
+| `data/` | SQLite database (`afd.db`) + CIC-IDS2017 CSV files | read/write any time |
+| `models/` | Versioned model artifacts (one sub-folder per trained version) | read/write any time |
+| `logs/api.log` | Uvicorn request + application logs | `tail -f logs/api.log` or `make logs-api` |
+
+> Training a new model writes artifacts to `models/<name>/` and updates `data/afd.db`.
+> Deleting `data/afd.db` resets the model registry; deleting a `models/<name>/` folder removes that version's artifacts.
+
+---
+
 ## Project Layout
 
 ```
