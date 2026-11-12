@@ -12,7 +12,8 @@ from __future__ import annotations
 from sqlalchemy import MetaData, create_engine, update
 
 
-def _sync_engine(db_url: str):
+def sync_engine_for(db_url: str):
+    """Return a synchronous SQLAlchemy engine from an async-dialect URL."""
     return create_engine(db_url.replace("sqlite+aiosqlite", "sqlite"))
 
 
@@ -24,7 +25,7 @@ def _model_versions_table(engine):
 
 def sync_update_model_version(db_url: str, version_id: int, **kwargs) -> None:
     """Update arbitrary columns on a model_versions row."""
-    engine = _sync_engine(db_url)
+    engine = sync_engine_for(db_url)
     tbl = _model_versions_table(engine)
     with engine.connect() as conn:
         conn.execute(update(tbl).where(tbl.c.id == version_id).values(**kwargs))
@@ -34,7 +35,7 @@ def sync_update_model_version(db_url: str, version_id: int, **kwargs) -> None:
 
 def sync_set_active(db_url: str, version_id: int) -> None:
     """Archive the existing active model version, then promote version_id to active."""
-    engine = _sync_engine(db_url)
+    engine = sync_engine_for(db_url)
     tbl = _model_versions_table(engine)
     with engine.connect() as conn:
         conn.execute(update(tbl).where(tbl.c.status == "active").values(status="archived"))

@@ -7,10 +7,10 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config.settings import get_settings
 from api import jobs
-from api.config import get_settings
-from api.database import get_db
-from api.db import crud
+from api.dao.session import get_db
+from api.dao import alerts as alerts_dao
 from api.schemas import BatchPredictResponse, BatchSummary, PredictJobStatusResponse
 from core.store import ModelStore
 from inference import pipeline as infer_pipeline
@@ -20,7 +20,6 @@ router = APIRouter(prefix="/api/predict", tags=["predict"])
 
 
 def _flow_results_to_db_dicts(results, flows: list[dict], ae_threshold: float) -> list[dict]:
-    # r.flow_id is the string index into the original flows list (set by pipeline)
     return [
         {
             "flow_id": r.flow_id,
@@ -37,18 +36,18 @@ def _flow_results_to_db_dicts(results, flows: list[dict], ae_threshold: float) -
     ]
 
 
-def _build_batch_response(alerts, rejected: list[dict]) -> BatchPredictResponse:
+def _build_batch_response(alert_list, rejected: list[dict]) -> BatchPredictResponse:
     from api.schemas import AlertResponse, RejectedRow
 
-    safe = sum(1 for a in alerts if a.consensus == "SAFE")
-    known = sum(1 for a in alerts if a.consensus == "KNOWN_ATTACK")
-    novel = sum(1 for a in alerts if a.consensus == "NOVEL_ATTACK")
+    safe = sum(1 for a in alert_list if a.consensus == "SAFE")
+    known = sum(1 for a in alert_list if a.consensus == "KNOWN_ATTACK")
+    novel = sum(1 for a in alert_list if a.consensus == "NOVEL_ATTACK")
 
     return BatchPredictResponse(
-        alerts=[AlertResponse.model_validate(a) for a in alerts],
+        alerts=[AlertResponse.model_validate(a) for a in alert_list],
         rejected_rows=[RejectedRow(**r) for r in rejected],
         summary=BatchSummary(
-            total=len(alerts) + len(rejected),
+            total=len(alert_list) + len(rejected),
             safe=safe,
             known_attack=known,
             novel_attack=novel,
@@ -69,7 +68,7 @@ def _run_async_inference(
         valid_rows, bundle, clf_confidence_threshold=clf_confidence_threshold
     )
     db_dicts = _flow_results_to_db_dicts(flow_results, valid_rows, bundle.ae_threshold)
-    crud.sync_insert_alerts(db_url, db_dicts)
+    alerts_dao.sync_insert_alerts(db_url, db_dicts)
 
     safe = sum(1 for r in flow_results if r.consensus == "SAFE")
     known = sum(1 for r in flow_results if r.consensus == "KNOWN_ATTACK")
@@ -105,14 +104,6 @@ async def batch_predict(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    POST /api/predict/batch
-
-    Sync  (≤ SYNC_MAX_ROWS): 200 BatchPredictResponse.
-    Async (> SYNC_MAX_ROWS): 202 {"job_id": str, "flow_count": int}.
-
-    Errors: 409 no active model | 413 file too large | 400 bad format.
-    """
     settings = get_settings()
 
     content = await file.read()
@@ -132,7 +123,6 @@ async def batch_predict(
         raise HTTPException(status_code=400, detail="Unsupported file type — upload a .csv or .pcap file")
 
     if not valid_rows:
-        # All rows failed I3 validation — return immediately with full rejection details
         from api.schemas import RejectedRow
         return BatchPredictResponse(
             alerts=[],
@@ -141,17 +131,14 @@ async def batch_predict(
         )
 
     if len(valid_rows) <= settings.sync_max_rows:
-        # ── Sync path ──────────────────────────────────────────────────────────
         flow_results = infer_pipeline.run_batch_inference(
             valid_rows, bundle, clf_confidence_threshold=settings.clf_confidence_threshold
         )
         db_dicts = _flow_results_to_db_dicts(flow_results, valid_rows, bundle.ae_threshold)
-        alerts = await crud.bulk_insert_alerts(db, db_dicts)
-        return _build_batch_response(alerts, rejected)
+        inserted = await alerts_dao.bulk_insert_alerts(db, db_dicts)
+        return _build_batch_response(inserted, rejected)
 
     else:
-        # ── Async path ─────────────────────────────────────────────────────────
-        # rejected rows are captured now and included in the final result
         job_id = str(uuid4())
         jobs.launch_predict_job(
             job_id,
@@ -170,7 +157,6 @@ async def batch_predict(
 
 @router.get("/{job_id}/status", response_model=PredictJobStatusResponse)
 async def predict_job_status(job_id: str):
-    """GET /api/predict/{job_id}/status — poll for async predict job progress."""
     status = jobs.get_predict_status(job_id)
     if status is None:
         raise HTTPException(status_code=404, detail="job_id not found")
@@ -179,7 +165,6 @@ async def predict_job_status(job_id: str):
 
 @router.get("/{job_id}/results")
 async def predict_job_results(job_id: str):
-    """GET /api/predict/{job_id}/results — fetch result when done=true."""
     status = jobs.get_predict_status(job_id)
     if status is None:
         raise HTTPException(status_code=404, detail="job_id not found")

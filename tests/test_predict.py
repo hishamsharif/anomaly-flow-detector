@@ -238,10 +238,10 @@ async def test_batch_predict_sync_returns_200(client: AsyncClient):
     bundle = _make_bundle()
     # Patch both ModelStore and bulk_insert_alerts
     with patch("api.routers.predict.ModelStore") as mock_store, \
-         patch("api.routers.predict.crud.bulk_insert_alerts") as mock_insert:
+         patch("api.routers.predict.alerts_dao.bulk_insert_alerts") as mock_insert:
         mock_store.get.return_value.get_active.return_value = bundle
 
-        from api.db.models import Alert
+        from db.models import Alert
         from datetime import datetime, timezone
         import json
 

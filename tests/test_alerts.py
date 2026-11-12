@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import pytest
 from httpx import AsyncClient
 
-from api.db.models import Alert
+from db.models import Alert
 
 
 def _make_alert(**kwargs) -> dict:
@@ -30,7 +30,7 @@ def _make_alert(**kwargs) -> dict:
 
 async def _insert_alert(client: AsyncClient, **kwargs) -> Alert:
     """Helper: directly add an Alert row via the DB session in the test client."""
-    from api.database import AsyncSessionLocal
+    from api.dao.session import AsyncSessionLocal
     async with AsyncSessionLocal() as db:
         a = Alert(**_make_alert(**kwargs))
         db.add(a)

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from sqlalchemy import Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from api.database import Base
+from db.base import Base
 
 
 class ModelVersion(Base):

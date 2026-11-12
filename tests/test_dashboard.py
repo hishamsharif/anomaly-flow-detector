@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import pytest
 from httpx import AsyncClient
 
-from api.db.models import Alert
+from db.models import Alert
 
 
 pytestmark = pytest.mark.asyncio
@@ -28,7 +28,7 @@ def _alert_dict(**kwargs) -> dict:
 
 
 async def _insert(client: AsyncClient, **kwargs) -> Alert:
-    from api.database import AsyncSessionLocal
+    from api.dao.session import AsyncSessionLocal
     async with AsyncSessionLocal() as db:
         a = Alert(**_alert_dict(**kwargs))
         db.add(a)

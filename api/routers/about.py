@@ -3,9 +3,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.config import get_settings
-from api.database import get_db
-from api.db import crud
+from config.settings import get_settings
+from api.dao.session import get_db
+from api.dao import model_versions as model_versions_dao
 from api.schemas import AboutResponse, ModelVersionResponse
 
 router = APIRouter(prefix="/api/about", tags=["about"])
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api/about", tags=["about"])
 @router.get("", response_model=AboutResponse)
 async def get_about(db: AsyncSession = Depends(get_db)) -> AboutResponse:
     settings = get_settings()
-    active = await crud.get_active_model(db)
+    active = await model_versions_dao.get_active_model(db)
     active_response = ModelVersionResponse.model_validate(active) if active else None
 
     config = {

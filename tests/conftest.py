@@ -5,8 +5,9 @@ import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
-import api.database as _db_module
-from api.database import Base, get_db
+import api.dao.session as _session_module
+from db.base import Base
+from api.dao.session import get_db
 from api.main import app
 
 _TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
@@ -22,10 +23,10 @@ async def client() -> AsyncClient:
 
     # Patch module-level singletons so lifespan (AsyncSessionLocal) and
     # routers (get_db override) both hit the in-memory test DB.
-    orig_engine = _db_module.engine
-    orig_sessions = _db_module.AsyncSessionLocal
-    _db_module.engine = test_engine
-    _db_module.AsyncSessionLocal = test_sessions
+    orig_engine = _session_module.engine
+    orig_sessions = _session_module.AsyncSessionLocal
+    _session_module.engine = test_engine
+    _session_module.AsyncSessionLocal = test_sessions
 
     async def _override_get_db():
         async with test_sessions() as session:
@@ -37,8 +38,8 @@ async def client() -> AsyncClient:
         yield ac
 
     app.dependency_overrides.clear()
-    _db_module.engine = orig_engine
-    _db_module.AsyncSessionLocal = orig_sessions
+    _session_module.engine = orig_engine
+    _session_module.AsyncSessionLocal = orig_sessions
     await test_engine.dispose()
 
 

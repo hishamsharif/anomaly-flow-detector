@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.database import get_db
+from api.dao.session import get_db
 from core.store import ModelStore
 from runtime.manifest import get_host_environment
 from runtime.preflight import build_preflight_report

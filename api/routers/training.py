@@ -6,13 +6,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config.settings import get_settings
 from api import jobs
-from api.config import get_settings
-from api.database import get_db
-from api.db import crud
-from api.db.models import ModelVersion
+from api.dao.session import get_db
+from api.dao import alerts as alerts_dao
+from api.dao import model_versions as model_versions_dao
 from api.schemas import TrainingJobResponse, TrainingStartRequest, TrainingStatusResponse
 from core.registry import ANOMALY_DETECTOR_REGISTRY, CLASSIFIER_LABELS, CLASSIFIER_REGISTRY, DETECTOR_LABELS
+from db.models import ModelVersion
 from training.pipelines.fine_tune import run_ae_fine_tune
 from training.pipelines.initial import run_initial_training
 
@@ -35,10 +36,10 @@ async def start_training(
 
     prev_path: str | None = None
     if body.mode == "ae_retrain":
-        active = await crud.get_active_model(db)
+        active = await model_versions_dao.get_active_model(db)
         if active is None:
             raise HTTPException(status_code=409, detail="No active model — run initial training first")
-        eligible = await crud.get_eligible_verdict_count(db)
+        eligible = await alerts_dao.get_eligible_verdict_count(db)
         if eligible < settings.fine_tune_k_threshold:
             raise HTTPException(
                 status_code=409,
@@ -71,8 +72,8 @@ async def start_training(
 
     if body.mode == "ae_retrain":
         # Fetch analyst-confirmed benign flows in the router (async context) before handing
-        # off to the background thread — keeps training/ free of api/db imports (SPEC §9).
-        analyst_flows = await crud.async_get_confirmed_benign_features(db)
+        # off to the background thread — keeps training/ free of api/dao imports (SPEC §9).
+        analyst_flows = await alerts_dao.async_get_confirmed_benign_features(db)
         jobs.launch_training_job(
             run_id, body.mode, run_ae_fine_tune,
             run_id, version.id, version_name,

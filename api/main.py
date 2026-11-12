@@ -4,9 +4,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.config import get_settings
-from api.database import AsyncSessionLocal
-from api.db import crud
+from config.settings import get_settings
+from api.dao.session import AsyncSessionLocal
+from api.dao import model_versions as model_versions_dao
 from api.routers import health
 from api.routers import models as models_router
 from api.routers import training as training_router
@@ -29,8 +29,8 @@ async def lifespan(app: FastAPI):
     logger.info("Host environment ready.")
     try:
         async with AsyncSessionLocal() as db:
-            await crud.mark_stale_training_as_failed(db)
-            active = await crud.get_active_model(db)
+            await model_versions_dao.mark_stale_training_as_failed(db)
+            active = await model_versions_dao.get_active_model(db)
         if active and active.path:
             try:
                 ModelStore.get().load_into_memory(active.path)

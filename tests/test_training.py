@@ -25,7 +25,7 @@ def _make_df(n: int = 200, attack_frac: float = 0.3, seed: int = 42) -> pd.DataF
 
 
 def _make_settings(**overrides):
-    from api.config import get_settings
+    from config.settings import get_settings
     s = get_settings()
     for k, v in overrides.items():
         object.__setattr__(s, k, v)
@@ -66,7 +66,7 @@ def test_selector_passthrough_when_k0():
 
 
 def test_feature_eng_pipeline_runs():
-    from api.config import get_settings
+    from config.settings import get_settings
     df = _make_df(300)
     split = int(len(df) * 0.6)
     vsplit = int(len(df) * 0.8)

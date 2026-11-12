@@ -10,7 +10,7 @@ from sklearn.metrics import (
     f1_score,
 )
 
-from db.sync_ops import sync_set_active, sync_update_model_version
+from db.utils.sync_ops import sync_set_active, sync_update_model_version
 from core.registry import ANOMALY_DETECTOR_REGISTRY, CLASSIFIER_REGISTRY
 from core.store import ModelStore
 from training.data_loader import load_dataset

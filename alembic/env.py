@@ -4,8 +4,9 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from api.config import get_settings
-from api.database import Base
+from config.settings import get_settings
+from db.base import Base
+import db.models  # noqa: F401 — registers ORM tables onto Base.metadata
 
 config = context.config
 if config.config_file_name:

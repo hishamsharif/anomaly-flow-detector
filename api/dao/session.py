@@ -1,8 +1,13 @@
-from pathlib import Path
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from sqlalchemy.orm import DeclarativeBase
+"""Async database session for the FastAPI layer.
 
-from api.config import get_settings
+Provides the async engine, session factory, and the get_db() dependency
+injector used by all API routers via FastAPI's Depends() mechanism.
+"""
+from pathlib import Path
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+from config.settings import get_settings
 
 
 def _make_engine():
@@ -17,10 +22,6 @@ def _make_engine():
 
 engine = _make_engine()
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
-
-
-class Base(DeclarativeBase):
-    pass
 
 
 async def get_db() -> AsyncSession:

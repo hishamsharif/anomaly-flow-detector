@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 from httpx import AsyncClient
 
-from api.db.models import Alert, ModelVersion
+from db.models import Alert, ModelVersion
 
 
 pytestmark = pytest.mark.asyncio
@@ -21,7 +21,7 @@ pytestmark = pytest.mark.asyncio
 @pytest.fixture
 def low_threshold():
     """Temporarily set fine_tune_k_threshold to 2 for speed."""
-    from api.config import get_settings
+    from config.settings import get_settings
     s = get_settings()
     old = s.fine_tune_k_threshold
     object.__setattr__(s, "fine_tune_k_threshold", 2)
@@ -45,7 +45,7 @@ def _alert_dict(**kwargs) -> dict:
 
 
 async def _insert_alert(client: AsyncClient, **kwargs) -> Alert:
-    from api.database import AsyncSessionLocal
+    from api.dao.session import AsyncSessionLocal
     async with AsyncSessionLocal() as db:
         a = Alert(**_alert_dict(**kwargs))
         db.add(a)
@@ -55,7 +55,7 @@ async def _insert_alert(client: AsyncClient, **kwargs) -> Alert:
 
 
 async def _insert_model(path: str | None = None, status: str = "active") -> int:
-    from api.database import AsyncSessionLocal
+    from api.dao.session import AsyncSessionLocal
     async with AsyncSessionLocal() as db:
         m = ModelVersion(
             name="v1",
