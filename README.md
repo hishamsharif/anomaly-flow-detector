@@ -209,7 +209,9 @@ These directories are bind-mounted out of the container — they survive `make s
 ## Project Layout
 
 ```
-api/          FastAPI app — routers, config, database, schemas
+config/       Pydantic Settings — single source of configuration
+db/           Shared ORM models, DeclarativeBase, sync DB helpers
+api/          FastAPI app — routers, DAO layer, schemas, jobs
 alembic/      DB schema migrations
 core/         Rule engine, classifier + detector protocols, model store
 training/     Feature engineering, initial training, AE fine-tune pipelines

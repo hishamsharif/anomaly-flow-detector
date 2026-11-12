@@ -540,7 +540,7 @@ All settings have working defaults. Override via `.env` file or environment vari
 | `CORS_ORIGINS` | list[str] | `["http://localhost:5173", "http://localhost"]` | Allowed CORS origins |
 | `LOG_LEVEL` | str | `INFO` | Logging level |
 
-**Rule:** Config is defined once, in `api/config.py` (Pydantic Settings). It is never duplicated
+**Rule:** Config is defined once, in `config/settings.py` (Pydantic Settings). It is never duplicated
 in `docker-compose.yml` environment blocks — Docker passes through env vars from the host or
 `env_file`, never re-declares them.
 
@@ -585,16 +585,22 @@ the CUDA torch wheel (`--build-arg TORCH_BUILD_TYPE=cu121` rebuild) and
 anomaly-flow-detector/
 ├── SPEC.md                         ← this file (authoritative contract)
 ├── Makefile                        ← make setup | resetup | start | stop | migrate | test | lint
-├── db/                             ← shared sync DB helpers (no api/ dependency — SPEC §9)
+├── config/
+│   └── settings.py                 ← Settings (pydantic-settings); ONLY place config lives
+├── db/
+│   ├── base.py                     ← shared DeclarativeBase (no FastAPI dependency)
+│   ├── models.py                   ← SQLAlchemy ORM (derived from schemas.py)
+│   └── utils/
+│       └── sync_ops.py             ← sync DB helpers for training pipelines (zero api/ imports — SPEC §9)
 ├── api/
 │   ├── main.py                     ← FastAPI app, lifespan, CORS, router includes
-│   ├── config.py                   ← Settings (pydantic-settings); ONLY place config lives
-│   ├── database.py                 ← async engine, Base, session factory
 │   ├── schemas.py                  ← ALL Pydantic request/response schemas ← SDD contract layer
 │   ├── jobs.py                     ← ThreadPoolExecutor + SSE bridge (target: < 100 lines)
-│   ├── db/
-│   │   ├── models.py               ← SQLAlchemy ORM (derived from schemas.py)
-│   │   └── crud.py                 ← DB helpers (sync for thread workers, async for routers)
+│   ├── dao/
+│   │   ├── db_conn.py              ← async engine, AsyncSessionLocal, get_db FastAPI dependency
+│   │   ├── alerts.py               ← alert CRUD (sync for thread workers, async for routers)
+│   │   ├── model_versions.py       ← model-version CRUD
+│   │   └── dashboard.py            ← dashboard summary query
 │   └── routers/
 │       ├── health.py
 │       ├── models.py
@@ -676,7 +682,7 @@ anomaly-flow-detector/
 - `core/` has zero HTTP, DB, or file-system dependencies
 - `runtime/` owns all host-environment discovery; `core/`, `training/`, and `inference/` receive resolved config as parameters — never probe the environment directly
 - `api/schemas.py` is the only place Pydantic request/response models are defined
-- All ORM models in `api/db/models.py` mirror schema fields (schemas are the source of truth)
+- All ORM models in `db/models.py` mirror schema fields (schemas are the source of truth)
 
 ---
 
