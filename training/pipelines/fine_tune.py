@@ -7,7 +7,7 @@ from typing import Callable
 
 import numpy as np
 
-from api.db.crud import sync_set_active, sync_update_model_version
+from db.sync_ops import sync_set_active, sync_update_model_version
 from core.registry import ANOMALY_DETECTOR_REGISTRY
 from core.store import ModelStore
 from training.data_loader import load_dataset

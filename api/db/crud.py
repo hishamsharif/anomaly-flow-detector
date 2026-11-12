@@ -16,13 +16,6 @@ def _sync_engine(db_url: str):
     return create_engine(db_url.replace("sqlite+aiosqlite", "sqlite"))
 
 
-def sync_update_model_version(db_url: str, version_id: int, **kwargs) -> None:
-    engine = _sync_engine(db_url)
-    with Session(engine) as session:
-        session.execute(update(ModelVersion).where(ModelVersion.id == version_id).values(**kwargs))
-        session.commit()
-    engine.dispose()
-
 
 def sync_get_confirmed_benign_features(db_url: str) -> list[dict] | None:
     """Return feature dicts for benign-labelled flows in the HITL replay buffer.
@@ -71,15 +64,6 @@ async def async_get_confirmed_benign_features(db: AsyncSession) -> list[dict] | 
             pass
     return result if result else None
 
-
-def sync_set_active(db_url: str, version_id: int) -> None:
-    """Archive existing active, promote version_id to active."""
-    engine = _sync_engine(db_url)
-    with Session(engine) as session:
-        session.execute(update(ModelVersion).where(ModelVersion.status == "active").values(status="archived"))
-        session.execute(update(ModelVersion).where(ModelVersion.id == version_id).values(status="active"))
-        session.commit()
-    engine.dispose()
 
 
 async def get_model_versions(db: AsyncSession) -> list[ModelVersion]:

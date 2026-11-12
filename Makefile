@@ -19,7 +19,7 @@ help:
 	@echo "  Anomaly Flow Detector — available commands"
 	@echo ""
 	@echo "  Setup (run once)"
-	@echo "    make setup            Create afd_v2 env + deps (GPU if CUDA found) + dataset"
+	@echo "    make setup            Create afd_v2 env + deps (GPU if CUDA found) + dataset + migrate"
 	@echo "    make resetup          Wipe env + DB + models, then run setup from scratch"
 	@echo ""
 	@echo "  Stack"
@@ -48,10 +48,21 @@ help:
 
 # ── Setup (run once) ──────────────────────────────────────────────────────────
 setup:
-	@echo "==> [1/2] Conda environment + dependencies"
-	@conda env list | grep -q "^afd_v2 " \
-		&& echo "  afd_v2 already exists — skipping create" \
-		|| conda create -n afd_v2 python=3.12 -y
+	@echo ""
+	@if conda env list | grep -q "^afd_v2 "; then \
+		echo "  afd_v2 env already exists."; \
+		printf "  Did you mean 'make resetup' for a full clean slate? [y/N] "; \
+		read confirm; \
+		if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
+			echo "  → Run: make resetup"; exit 0; \
+		fi; \
+		echo "  Continuing — reinstalling dependencies into existing env …"; \
+		echo ""; \
+	else \
+		echo "==> Creating conda environment (afd_v2, Python 3.12)"; \
+		conda create -n afd_v2 python=3.12 -y; \
+	fi
+	@echo "==> Installing dependencies"
 	conda run -n afd_v2 pip install -r requirements.txt
 	@if command -v nvidia-smi > /dev/null 2>&1 && nvidia-smi > /dev/null 2>&1; then \
 		echo "  CUDA detected — installing cu121 torch"; \
@@ -61,7 +72,7 @@ setup:
 		echo "  No CUDA detected — using CPU torch (re-run setup after enabling GPU)"; \
 	fi
 	@echo ""
-	@echo "==> [2/2] Dataset"
+	@echo "==> Dataset"
 	@CSV_COUNT=$$(find -L data/CIC-IDS2017 -maxdepth 1 -name "*.csv" 2>/dev/null | wc -l); \
 	if [ "$$CSV_COUNT" -gt 0 ]; then \
 		echo "  CIC-IDS2017 already present ($$CSV_COUNT CSV files) — skipping."; \
@@ -73,6 +84,10 @@ setup:
 		rm data/CIC-IDS2017.zip; \
 		echo "  Done — $$(find -L data/CIC-IDS2017 -maxdepth 1 -name '*.csv' | wc -l) CSV files ready."; \
 	fi
+	@echo ""
+	@echo "==> Applying DB migrations"
+	@mkdir -p data; [ -f data/afd.db ] || touch data/afd.db
+	$(MAKE) migrate
 	@echo ""
 	@echo "Setup complete. Next: make start"
 
@@ -100,7 +115,7 @@ resetup:
 	mkdir -p data; \
 	touch data/afd.db; \
 	echo "==> Clearing model artifacts…"; \
-	find models/ -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} + 2>/dev/null; true; \
+	$(MAKE) clean-models; \
 	echo "==> Clearing logs…"; \
 	rm -f logs/*.log 2>/dev/null; true; \
 	echo ""; \
