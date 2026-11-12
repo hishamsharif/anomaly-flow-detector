@@ -38,9 +38,9 @@ def run_initial_training(
         # 2. Feature engineering
         emit("progress", "Running feature engineering …")
         (
-            X_tr_clf, X_tr_det,
-            X_va_clf, X_va_det,
-            X_te_clf, X_te_det,
+            X_tr_classifier, X_tr_detector,
+            X_va_classifier, X_va_detector,
+            X_te_classifier, X_te_detector,
             y_tr, y_te,
             y_va,
             feat_result,
@@ -60,23 +60,23 @@ def run_initial_training(
         emit("progress", f"Training {CLASSIFIERS[classifier_type].label} …")
         clf_cls = CLASSIFIERS[classifier_type]
         clf = clf_cls(device=device)
-        clf.fit(X_tr_clf, y_tr)
+        clf.fit(X_tr_classifier, y_tr)
         emit("step", "60")
 
         # 4. Fit AE on benign-only train, calibrate on val-benign
         emit("progress", "Training MLP Autoencoder on benign flows …")
         ae_cls = DETECTORS[detector_type]
         ae = ae_cls(device=device)
-        ae.fit(X_tr_det)
+        ae.fit(X_tr_detector)
         benign_val_mask = y_va == 0
-        X_va_benign = X_va_det[benign_val_mask] if benign_val_mask.any() else X_va_det
+        X_va_benign = X_va_detector[benign_val_mask] if benign_val_mask.any() else X_va_detector
         ae.calibrate_threshold(X_va_benign, percentile=settings.ae_anomaly_threshold_percentile)
         emit("step", "80")
 
         # 5. Evaluate on test set
         emit("progress", "Evaluating …")
-        labels_te, confs_te = clf.predict(X_te_clf)
-        ae_scores_te = ae.score(X_te_det)
+        labels_te, confs_te = clf.predict(X_te_classifier)
+        ae_scores_te = ae.score(X_te_detector)
 
         f1 = float(f1_score(y_te, labels_te, average="weighted", zero_division=0))
         pr_auc = float(average_precision_score(y_te, confs_te) if len(np.unique(y_te)) > 1 else 0.0)

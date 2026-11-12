@@ -75,22 +75,22 @@ def run_feature_engineering(
     X_te = sel.transform(X_te)
     final_names = sel.selected_names
 
-    # Step 5a — clf scaler (fit on train)
+    # Step 5a — classifier scaler (fit on train)
     clf_scaler = StandardScaler()
-    X_tr_clf = clf_scaler.fit_transform(X_tr)
-    X_va_clf = clf_scaler.transform(X_va)
-    X_te_clf = clf_scaler.transform(X_te)
+    X_tr_classifier = clf_scaler.fit_transform(X_tr)
+    X_va_classifier = clf_scaler.transform(X_va)
+    X_te_classifier = clf_scaler.transform(X_te)
 
-    # Step 5b — det scaler (fit on benign-only train)
+    # Step 5b — detector scaler (fit on benign-only train)
     benign_mask = y_tr == 0
     X_tr_benign = X_tr[benign_mask]
     det_scaler = StandardScaler()
     if len(X_tr_benign) == 0:
         X_tr_benign = X_tr
     det_scaler.fit(X_tr_benign)
-    X_tr_det = det_scaler.transform(X_tr_benign)
-    X_va_det = det_scaler.transform(X_va)
-    X_te_det = det_scaler.transform(X_te)
+    X_tr_detector = det_scaler.transform(X_tr_benign)
+    X_va_detector = det_scaler.transform(X_va)
+    X_te_detector = det_scaler.transform(X_te)
 
     result = FeatureEngResult(
         variance_mask=vf.mask,
@@ -102,9 +102,9 @@ def run_feature_engineering(
     )
 
     return (
-        X_tr_clf, X_tr_det,
-        X_va_clf, X_va_det,
-        X_te_clf, X_te_det,
+        X_tr_classifier, X_tr_detector,
+        X_va_classifier, X_va_detector,
+        X_te_classifier, X_te_detector,
         y_tr, y_te,
         y_va,
         result,
