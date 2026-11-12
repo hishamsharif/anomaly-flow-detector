@@ -10,11 +10,15 @@ import pandas as pd
 def _load_csvs(paths: list[Path]) -> pd.DataFrame:
     if not paths:
         return pd.DataFrame()
-    quoted = ", ".join(f"'{p}'" for p in paths)
-    db_connection = duckdb.connect()
-    df = db_connection.execute(f"SELECT * FROM read_csv_auto([{quoted}], header=true, ignore_errors=true)").df()
-    db_connection.close()
-    return df
+    frames = []
+    for p in paths:
+        db = duckdb.connect()
+        df = db.execute(f"SELECT * FROM read_csv_auto('{p}', header=true, ignore_errors=true)").df()
+        db.close()
+        # Normalise column names: strip whitespace, replace '.' with '_'
+        df.columns = [c.strip().replace(".", "_") for c in df.columns]
+        frames.append(df)
+    return pd.concat(frames, ignore_index=True)
 
 
 def _clean(df: pd.DataFrame) -> pd.DataFrame:
