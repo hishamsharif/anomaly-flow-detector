@@ -39,7 +39,12 @@ def run_feature_engineering(
     X_*_det  — detector-scaler  (StandardScaler fit on benign-only train)
     X_train_det contains only benign rows (AE trains on benign-only data).
     """
-    feature_cols = [c for c in train_df.columns if c != "label"]
+    # Intersect columns across all three splits to handle schema differences
+    # between dataset files (e.g. one stub file missing a column).
+    shared_cols = (
+        set(train_df.columns) & set(val_df.columns) & set(test_df.columns)
+    ) - {"label"}
+    feature_cols = [c for c in train_df.columns if c in shared_cols]
 
     X_train = train_df[feature_cols].values.astype(np.float32)
     y_train = train_df["label"].values
