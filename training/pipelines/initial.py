@@ -37,11 +37,10 @@ def run_initial_training(
         # 2. Feature engineering
         emit("progress", "Running feature engineering …")
         (
-            X_tr_classifier, X_tr_detector,
-            X_va_classifier, X_va_detector,
-            X_te_classifier, X_te_detector,
-            y_tr, y_te,
-            y_va,
+            X_train_clf, X_train_det,
+            X_val_clf,   X_val_det,
+            X_test_clf,  X_test_det,
+            y_train, y_val, y_test,
             feat_result,
         ) = run_feature_engineering(train_df, val_df, test_df, settings)
         emit("step", "30")
@@ -55,52 +54,53 @@ def run_initial_training(
             except ImportError:
                 device = "cpu"
 
-        # 3. Fit classifier
+        # 3. Fit classifier on full scaled training set (all classes)
         emit("progress", f"Training {CLASSIFIER_REGISTRY[classifier_type].label} …")
         classifier_class = CLASSIFIER_REGISTRY[classifier_type]
         classifier = classifier_class(device=device)
-        classifier.fit(X_tr_classifier, y_tr)
+        classifier.fit(X_train_clf, y_train)
         emit("step", "60")
 
-        # 4. Fit AE on benign-only train, calibrate on val-benign
+        # 4. Fit AE on benign-only train, calibrate threshold on val-benign
+        # X_train_det already contains only benign rows (feature_eng/pipeline.py §5b)
         emit("progress", "Training MLP Autoencoder on benign flows …")
         detector_class = ANOMALY_DETECTOR_REGISTRY[detector_type]
         detector = detector_class(device=device)
-        detector.fit(X_tr_detector)
-        benign_val_mask = y_va == 0
-        X_va_benign = X_va_detector[benign_val_mask] if benign_val_mask.any() else X_va_detector
-        detector.calibrate_threshold(X_va_benign, percentile=settings.ae_anomaly_threshold_percentile)
-        # p75 of val-benign errors → severity threshold for NOVEL_ATTACK (critical vs high, §3.1)
-        novel_critical_threshold = float(np.percentile(detector.score(X_va_benign), 75.0))
+        detector.fit(X_train_det)
+        benign_val_mask = y_val == 0
+        X_val_benign = X_val_det[benign_val_mask] if benign_val_mask.any() else X_val_det
+        detector.calibrate_threshold(X_val_benign, percentile=settings.ae_anomaly_threshold_percentile)
+        # p75 of val-benign reconstruction errors → severity threshold for NOVEL_ATTACK (critical vs high, §3.1)
+        novel_critical_threshold = float(np.percentile(detector.score(X_val_benign), 75.0))
         emit("step", "80")
 
-        # 5. Evaluate on test set
+        # 5. Evaluate on held-out test set
         emit("progress", "Evaluating …")
-        test_labels, test_confidences = classifier.predict(X_te_classifier)
-        test_ae_scores = detector.score(X_te_detector)
+        test_labels, test_confidences = classifier.predict(X_test_clf)
+        test_ae_scores = detector.score(X_test_det)
 
-        f1 = float(f1_score(y_te, test_labels, average="weighted", zero_division=0))
-        pr_auc = float(average_precision_score(y_te, test_confidences) if len(np.unique(y_te)) > 1 else 0.0)
+        f1 = float(f1_score(y_test, test_labels, average="weighted", zero_division=0))
+        pr_auc = float(average_precision_score(y_test, test_confidences) if len(np.unique(y_test)) > 1 else 0.0)
 
-        # FAR = FP / (FP + TN)  on BENIGN rows
-        benign_te = y_te == 0
-        if benign_te.any():
-            fp = int(((test_labels == 1) & benign_te).sum())
-            tn = int(((test_labels == 0) & benign_te).sum())
+        # FAR = FP / (FP + TN) on BENIGN rows — false alarm rate
+        benign_test = y_test == 0
+        if benign_test.any():
+            fp = int(((test_labels == 1) & benign_test).sum())
+            tn = int(((test_labels == 0) & benign_test).sum())
             far = fp / (fp + tn) if (fp + tn) > 0 else 0.0
         else:
             far = 0.0
 
-        # AMR = FN / (FN + TP) on attack rows
-        attack_te = y_te == 1
-        if attack_te.any():
-            fn = int(((test_labels == 0) & attack_te).sum())
-            tp = int(((test_labels == 1) & attack_te).sum())
+        # AMR = FN / (FN + TP) on ATTACK rows — attacker miss rate
+        attack_test = y_test == 1
+        if attack_test.any():
+            fn = int(((test_labels == 0) & attack_test).sum())
+            tp = int(((test_labels == 1) & attack_test).sum())
             amr = fn / (fn + tp) if (fn + tp) > 0 else 0.0
         else:
             amr = 0.0
 
-        known_attack_f1 = float(f1_score(y_te, test_labels, pos_label=1, average="binary", zero_division=0))
+        known_attack_f1 = float(f1_score(y_test, test_labels, pos_label=1, average="binary", zero_division=0))
 
         metrics = {
             "classifier_type": classifier_type,
@@ -114,9 +114,9 @@ def run_initial_training(
             "ae_threshold": round(detector.threshold, 6),
             "novel_critical_threshold": round(novel_critical_threshold, 6),
             "training_duration_s": round(time.time() - training_start_time, 1),
-            "train_rows": len(y_tr),
-            "val_rows": len(y_va),
-            "test_rows": len(y_te),
+            "train_rows": len(y_train),
+            "val_rows": len(y_val),
+            "test_rows": len(y_test),
         }
         emit("step", "90")
 

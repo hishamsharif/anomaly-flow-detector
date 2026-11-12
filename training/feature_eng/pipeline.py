@@ -27,70 +27,74 @@ def run_feature_engineering(
     test_df: pd.DataFrame,
     settings,
 ) -> tuple[
-    np.ndarray, np.ndarray,
-    np.ndarray, np.ndarray,
-    np.ndarray, np.ndarray,
-    np.ndarray, np.ndarray,
-    np.ndarray,
+    np.ndarray, np.ndarray,   # X_train_clf, X_train_det
+    np.ndarray, np.ndarray,   # X_val_clf,   X_val_det
+    np.ndarray, np.ndarray,   # X_test_clf,  X_test_det
+    np.ndarray, np.ndarray, np.ndarray,  # y_train, y_val, y_test
     FeatureEngResult,
 ]:
+    """Apply feature engineering steps and return scaled matrices for each split.
+
+    X_*_clf  — classifier-scaler (StandardScaler fit on full train)
+    X_*_det  — detector-scaler  (StandardScaler fit on benign-only train)
+    X_train_det contains only benign rows (AE trains on benign-only data).
+    """
     feature_cols = [c for c in train_df.columns if c != "label"]
 
-    X_tr = train_df[feature_cols].values.astype(np.float32)
-    y_tr = train_df["label"].values
-    X_va = val_df[feature_cols].values.astype(np.float32)
-    y_va = val_df["label"].values
-    X_te = test_df[feature_cols].values.astype(np.float32)
-    y_te = test_df["label"].values
+    X_train = train_df[feature_cols].values.astype(np.float32)
+    y_train = train_df["label"].values
+    X_val = val_df[feature_cols].values.astype(np.float32)
+    y_val = val_df["label"].values
+    X_test = test_df[feature_cols].values.astype(np.float32)
+    y_test = test_df["label"].values
 
-    # Step 1 — variance filter
+    # Step 1 — variance filter (fit on train, applied to all splits)
     variance_filter = VarianceFilter(threshold=settings.variance_threshold)
-    X_tr = variance_filter.fit_transform(X_tr)
-    X_va = variance_filter.transform(X_va)
-    X_te = variance_filter.transform(X_te)
-    names_after_vf = [n for n, keep in zip(feature_cols, variance_filter.mask) if keep]
+    X_train = variance_filter.fit_transform(X_train)
+    X_val = variance_filter.transform(X_val)
+    X_test = variance_filter.transform(X_test)
+    names_after_variance = [n for n, keep in zip(feature_cols, variance_filter.mask) if keep]
 
-    # Step 2 — correlation filter
+    # Step 2 — correlation filter (fit on train, applied to all splits)
     correlation_filter = CorrelationFilter(threshold=settings.correlation_threshold)
-    X_tr = correlation_filter.fit_transform(X_tr, names_after_vf)
-    X_va = correlation_filter.transform(X_va)
-    X_te = correlation_filter.transform(X_te)
-    names_after_cf = [n for n, keep in zip(names_after_vf, correlation_filter.mask) if keep]
+    X_train = correlation_filter.fit_transform(X_train, names_after_variance)
+    X_val = correlation_filter.transform(X_val)
+    X_test = correlation_filter.transform(X_test)
+    names_after_correlation = [n for n, keep in zip(names_after_variance, correlation_filter.mask) if keep]
 
-    # Step 3 — SMOTE on train only
-    if len(np.unique(y_tr)) > 1:
+    # Step 3 — SMOTE on train only (balances attack classes; val/test untouched for realistic evaluation)
+    if len(np.unique(y_train)) > 1:
         try:
             from imblearn.over_sampling import SMOTE
-            counts = np.bincount(y_tr.astype(int))
+            counts = np.bincount(y_train.astype(int))
             sampling = {cls: min(cnt, settings.smote_max_per_class) for cls, cnt in enumerate(counts) if cnt > 0}
             sm = SMOTE(sampling_strategy=sampling, random_state=42)
-            X_tr, y_tr = sm.fit_resample(X_tr, y_tr)
+            X_train, y_train = sm.fit_resample(X_train, y_train)
         except Exception:
             pass  # SMOTE fails on very small datasets; proceed without
 
-    # Step 4 — optional feature selection
+    # Step 4 — optional supervised feature selection (fit on train)
     feature_selector = FeatureSelector(k=settings.feature_selection_k, method=settings.feature_selection_method)
-    X_tr = feature_selector.fit_transform(X_tr, y_tr, names_after_cf)
-    X_va = feature_selector.transform(X_va)
-    X_te = feature_selector.transform(X_te)
+    X_train = feature_selector.fit_transform(X_train, y_train, names_after_correlation)
+    X_val = feature_selector.transform(X_val)
+    X_test = feature_selector.transform(X_test)
     final_names = feature_selector.selected_names
 
-    # Step 5a — classifier scaler (fit on train)
+    # Step 5a — classifier scaler: StandardScaler fit on full train (all classes)
     classifier_scaler = StandardScaler()
-    X_tr_classifier = classifier_scaler.fit_transform(X_tr)
-    X_va_classifier = classifier_scaler.transform(X_va)
-    X_te_classifier = classifier_scaler.transform(X_te)
+    X_train_clf = classifier_scaler.fit_transform(X_train)
+    X_val_clf   = classifier_scaler.transform(X_val)
+    X_test_clf  = classifier_scaler.transform(X_test)
 
-    # Step 5b — detector scaler (fit on benign-only train)
-    benign_mask = y_tr == 0
-    X_tr_benign = X_tr[benign_mask]
+    # Step 5b — detector scaler: StandardScaler fit on benign-only train
+    # AE learns the distribution of normal traffic; fitting on attack rows would bias the scaler.
+    benign_train_mask = y_train == 0
+    X_train_benign = X_train[benign_train_mask] if benign_train_mask.any() else X_train
     detector_scaler = StandardScaler()
-    if len(X_tr_benign) == 0:
-        X_tr_benign = X_tr
-    detector_scaler.fit(X_tr_benign)
-    X_tr_detector = detector_scaler.transform(X_tr_benign)
-    X_va_detector = detector_scaler.transform(X_va)
-    X_te_detector = detector_scaler.transform(X_te)
+    detector_scaler.fit(X_train_benign)
+    X_train_det = detector_scaler.transform(X_train_benign)   # benign rows only
+    X_val_det   = detector_scaler.transform(X_val)
+    X_test_det  = detector_scaler.transform(X_test)
 
     result = FeatureEngResult(
         variance_mask=variance_filter.mask,
@@ -102,10 +106,9 @@ def run_feature_engineering(
     )
 
     return (
-        X_tr_classifier, X_tr_detector,
-        X_va_classifier, X_va_detector,
-        X_te_classifier, X_te_detector,
-        y_tr, y_te,
-        y_va,
+        X_train_clf, X_train_det,
+        X_val_clf,   X_val_det,
+        X_test_clf,  X_test_det,
+        y_train, y_val, y_test,
         result,
     )

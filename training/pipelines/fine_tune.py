@@ -68,19 +68,19 @@ def run_ae_fine_tune(
         # 4. Load dataset + apply saved transforms (no re-fitting of masks or scalers)
         emit("progress", "Loading dataset and applying saved transforms …")
         train_df, val_df, test_df = load_dataset(settings.bundled_dataset_dir)
-        X_tr_scaled, y_tr_raw = _apply_saved_transforms(train_df, bundle)
-        X_va_scaled, y_va_raw = _apply_saved_transforms(val_df, bundle)
-        X_te_scaled, y_te_raw = _apply_saved_transforms(test_df, bundle)
+        X_train_scaled, y_train = _apply_saved_transforms(train_df, bundle)
+        X_val_scaled,   y_val   = _apply_saved_transforms(val_df, bundle)
+        X_test_scaled,  y_test  = _apply_saved_transforms(test_df, bundle)
         emit("step", "25")
 
         # 5. Build replay buffer: historical benign rows + analyst-confirmed SAFE flows (HITL)
         emit("progress", "Building replay buffer (historical benign + analyst-confirmed flows) …")
-        benign_tr_mask = y_tr_raw == 0
-        X_tr_benign = X_tr_scaled[benign_tr_mask]
+        benign_train_mask = y_train == 0
+        X_train_benign = X_train_scaled[benign_train_mask]
         rng = np.random.default_rng(42)
-        n_replay = max(1, int(len(X_tr_benign) * settings.ae_replay_buffer_fraction))
-        idx = rng.choice(len(X_tr_benign), size=min(n_replay, len(X_tr_benign)), replace=False)
-        X_replay = X_tr_benign[idx]
+        n_replay = max(1, int(len(X_train_benign) * settings.ae_replay_buffer_fraction))
+        idx = rng.choice(len(X_train_benign), size=min(n_replay, len(X_train_benign)), replace=False)
+        X_replay = X_train_benign[idx]
 
         # Extend with analyst-confirmed benign flows passed in from the router (HITL differentiator).
         # features_json stores post-filter feature dicts keyed by bundle.feature_names.
@@ -105,20 +105,20 @@ def run_ae_fine_tune(
 
         # 7. Recalibrate threshold on val-benign
         emit("progress", "Recalibrating AE threshold on val-benign …")
-        benign_va_mask = y_va_raw == 0
-        X_va_benign = X_va_scaled[benign_va_mask] if benign_va_mask.any() else X_va_scaled
-        detector.calibrate_threshold(X_va_benign, percentile=settings.ae_anomaly_threshold_percentile)
-        novel_critical_threshold = float(np.percentile(detector.score(X_va_benign), 75.0))
+        benign_val_mask = y_val == 0
+        X_val_benign = X_val_scaled[benign_val_mask] if benign_val_mask.any() else X_val_scaled
+        detector.calibrate_threshold(X_val_benign, percentile=settings.ae_anomaly_threshold_percentile)
+        novel_critical_threshold = float(np.percentile(detector.score(X_val_benign), 75.0))
         emit("step", "75")
 
         # 8. Regression gate (advisory) — AE-based FAR and AMR on test set
         emit("progress", "Computing regression gate metrics …")
-        benign_te_mask = y_te_raw == 0
-        attack_te_mask = y_te_raw == 1
-        scores_te_benign = detector.score(X_te_scaled[benign_te_mask]) if benign_te_mask.any() else np.array([])
-        scores_te_attack = detector.score(X_te_scaled[attack_te_mask]) if attack_te_mask.any() else np.array([])
-        ae_far = float((scores_te_benign > detector.threshold).mean()) if len(scores_te_benign) else 0.0
-        ae_amr = float((scores_te_attack <= detector.threshold).mean()) if len(scores_te_attack) else 0.0
+        benign_test_mask = y_test == 0
+        attack_test_mask = y_test == 1
+        scores_test_benign = detector.score(X_test_scaled[benign_test_mask]) if benign_test_mask.any() else np.array([])
+        scores_test_attack = detector.score(X_test_scaled[attack_test_mask]) if attack_test_mask.any() else np.array([])
+        ae_far = float((scores_test_benign > detector.threshold).mean()) if len(scores_test_benign) else 0.0
+        ae_amr = float((scores_test_attack <= detector.threshold).mean()) if len(scores_test_attack) else 0.0
 
         old_metrics: dict = {}
         prev_meta = Path(prev_artifact_path) / "metadata.json"
