@@ -7,7 +7,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.settings import get_settings
-from api import jobs
+from api.http import jobs
 from api.http.dao.db_conn import get_db
 from runtime.manifest import get_host_environment
 from api.http.dao import alerts as alerts_dao

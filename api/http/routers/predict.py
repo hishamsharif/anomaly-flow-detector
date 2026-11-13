@@ -8,12 +8,12 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.settings import get_settings
-from api import jobs
+from api.http import jobs
 from api.http.dao.db_conn import get_db
 from api.http.dao import alerts as alerts_dao
 from api.http.schemas import BatchPredictResponse, BatchSummary, PredictJobStatusResponse
 from pipeline.store import ModelStore
-from inference import pipeline as infer_pipeline
+from pipeline.inference import predict_classifier as infer_pipeline
 from pipeline.inference.adapters import csv_adapter, pcap_adapter
 
 router = APIRouter(prefix="/api/predict", tags=["predict"])

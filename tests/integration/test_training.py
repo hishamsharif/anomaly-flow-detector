@@ -168,7 +168,7 @@ async def test_training_start_returns_202(client: AsyncClient):
 
 async def test_training_start_409_when_already_training(client: AsyncClient):
     import threading, time
-    from api import jobs
+    from api.http import jobs
 
     barrier = threading.Event()
 

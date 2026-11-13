@@ -278,7 +278,7 @@ async def test_predict_job_results_404(client: AsyncClient):
 
 
 async def test_predict_job_results_409_not_done(client: AsyncClient):
-    from api import jobs as _jobs
+    from api.http import jobs as _jobs
     import threading
     barrier = threading.Event()
 
