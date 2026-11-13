@@ -149,7 +149,7 @@ def test_mlp_ae_save_load(tmp_path):
 # ── API training endpoints ────────────────────────────────────────────────────
 
 async def test_training_start_returns_202(client: AsyncClient):
-    with patch("api.routers.training.run_initial_training") as mock_fn:
+    with patch("api.http.routers.training.run_initial_training") as mock_fn:
         # Make the training job complete immediately
         def _immediate(run_id, version_id, version_name, clf_type, det_type, settings, emit, db_url, device="cpu"):
             emit("step", "100")
@@ -176,7 +176,7 @@ async def test_training_start_409_when_already_training(client: AsyncClient):
         barrier.wait(timeout=5)
         emit("done", "done")
 
-    with patch("api.routers.training.run_initial_training", side_effect=_slow):
+    with patch("api.http.routers.training.run_initial_training", side_effect=_slow):
         resp1 = await client.post("/api/training/start", json={
             "classifier_type": "xgboost",
             "detector_type": "mlp_ae",
@@ -199,7 +199,7 @@ async def test_training_status_404_unknown(client: AsyncClient):
 
 
 async def test_training_status_200_after_start(client: AsyncClient):
-    with patch("api.routers.training.run_initial_training") as mock_fn:
+    with patch("api.http.routers.training.run_initial_training") as mock_fn:
         done_event = __import__("threading").Event()
 
         def _slow(run_id, version_id, version_name, clf_type, det_type, settings, emit, db_url):

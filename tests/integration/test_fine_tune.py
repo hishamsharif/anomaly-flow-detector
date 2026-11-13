@@ -180,7 +180,7 @@ async def test_ae_retrain_202_when_unlocked(client: AsyncClient, low_threshold, 
     await _insert_alert(client, analyst_verdict="confirmed")
     await _insert_alert(client, analyst_verdict="confirmed")
 
-    with patch("api.routers.training.run_ae_fine_tune") as mock_fn:
+    with patch("api.http.routers.training.run_ae_fine_tune") as mock_fn:
         def _immediate(*args):
             # find emit callable — it's the second-to-last positional arg
             emit = args[-2]
@@ -232,7 +232,7 @@ async def test_promote_200_sets_active(client: AsyncClient, tmp_path):
     # Create a completed model to promote
     target_id = await _insert_model(path=str(tmp_path / "new"), status="failed")
 
-    with patch("api.routers.models.ModelStore") as mock_store:
+    with patch("api.http.routers.models.ModelStore") as mock_store:
         mock_store.get.return_value.load_into_memory.return_value = None
         res = await client.post(f"/api/models/{target_id}/promote")
 

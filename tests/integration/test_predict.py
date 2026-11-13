@@ -214,7 +214,7 @@ def test_severity_novel_attack_high():
 # ── API endpoint tests ────────────────────────────────────────────────────────
 
 async def test_batch_predict_409_no_active_model(client: AsyncClient):
-    with patch("api.routers.predict.ModelStore") as mock_store:
+    with patch("api.http.routers.predict.ModelStore") as mock_store:
         mock_store.get.return_value.get_active.return_value = None
         resp = await client.post(
             "/api/predict/batch",
@@ -224,7 +224,7 @@ async def test_batch_predict_409_no_active_model(client: AsyncClient):
 
 
 async def test_batch_predict_413_oversized(client: AsyncClient):
-    with patch("api.routers.predict.ModelStore") as mock_store:
+    with patch("api.http.routers.predict.ModelStore") as mock_store:
         mock_store.get.return_value.get_active.return_value = _make_bundle()
         big_content = b"x" * (200 * 1024 * 1024)
         resp = await client.post(
@@ -237,8 +237,8 @@ async def test_batch_predict_413_oversized(client: AsyncClient):
 async def test_batch_predict_sync_returns_200(client: AsyncClient):
     bundle = _make_bundle()
     # Patch both ModelStore and bulk_insert_alerts
-    with patch("api.routers.predict.ModelStore") as mock_store, \
-         patch("api.routers.predict.alerts_dao.bulk_insert_alerts") as mock_insert:
+    with patch("api.http.routers.predict.ModelStore") as mock_store, \
+         patch("api.http.routers.predict.alerts_dao.bulk_insert_alerts") as mock_insert:
         mock_store.get.return_value.get_active.return_value = bundle
 
         from db.models import Alert
