@@ -18,7 +18,7 @@ help:
 	@echo ""
 	@echo "  Anomaly Flow Detector — available commands"
 	@echo ""
-	@echo "  Setup (run once)"
+	@echo "  Setup"
 	@echo "    make setup            Create afd_v2 env + deps (GPU if CUDA found) + dataset + migrate"
 	@echo "    make resetup          Wipe env + DB + models, then run setup from scratch"
 	@echo ""

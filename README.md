@@ -96,7 +96,7 @@ CORS_ORIGINS=["http://localhost:5173","http://localhost"]
 ```
 Setup
   make setup              Create afd_v2 env + deps (auto GPU) + download CIC-IDS2017 dataset
-  make resetup            Wipe env + DB + models + logs, then run setup from scratch
+  make resetup            Wipe env + DB + models + logs and re-run setup (clean slate)
 
 Offline (no server required)
   make train              Initial training: classifier + AE on CIC-IDS2017  (GPU if available)
