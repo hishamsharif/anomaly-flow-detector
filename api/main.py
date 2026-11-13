@@ -14,6 +14,7 @@ from api.routers import predict as predict_router
 from api.routers import alerts as alerts_router
 from api.routers import about as about_router
 from api.routers import dashboard as dashboard_router
+from api.routers import dataset as dataset_router
 from core.store import ModelStore
 from runtime.manifest import resolve_host_environment
 
@@ -64,3 +65,4 @@ app.include_router(predict_router.router)
 app.include_router(alerts_router.router)
 app.include_router(dashboard_router.router)
 app.include_router(about_router.router)
+app.include_router(dataset_router.router)

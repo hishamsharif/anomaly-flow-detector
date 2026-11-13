@@ -1,4 +1,4 @@
-.PHONY: help setup resetup start stop logs status test lint migrate export-spec train infer clean-models api ui
+.PHONY: help setup resetup start stop logs status test lint migrate export-spec train infer eda clean-models api ui
 
 COMPOSE        = docker compose
 DL_ENV         = /home/hhaniffa/miniconda/envs/afd_v2/bin
@@ -23,6 +23,7 @@ help:
 	@echo "    make resetup          Wipe env + DB + models, then run setup from scratch"
 	@echo ""
 	@echo "  Offline (standalone)"
+	@echo "    make eda              EDA + preprocessing report → data/eda_summary.json (run before train)"
 	@echo "    make train            Initial training: classifier + AE on CIC-IDS2017  (GPU if available)"
 	@echo "    make infer CSV=<file> Score a CSV through the full pipeline"
 	@echo "                          Optional: OUTPUT=<file>  DB=<path>  (default DB: data/afd.db)"
@@ -244,6 +245,20 @@ migrate:
 export-spec:
 	PYTHONPATH=. $(DL_ENV)/python -c \
 		"import json; from api.main import app; open('docs/openapi.json','w').write(json.dumps(app.openapi(), indent=2))"
+
+# ── EDA + preprocessing report ─────────────────────────────────────────────────
+eda:
+	@echo ""
+	@echo "==> AFD V2 — EDA + preprocessing report"
+	@CSV_COUNT=$$(find -L data/CIC-IDS2017 -maxdepth 1 -name "*.csv" 2>/dev/null | wc -l); \
+	if [ "$$CSV_COUNT" -eq 0 ]; then \
+		echo "  ERROR: No CSV files found in data/CIC-IDS2017/"; \
+		echo "  Run 'make setup' first, or set CIC_IDS2017_DIR in .env."; \
+		exit 1; \
+	fi; \
+	echo "  Dataset: $$CSV_COUNT CSV files found"
+	@echo ""
+	PYTHONPATH=. $(DL_ENV)/python eda/eda_offline.py
 
 # ── Offline initial training ───────────────────────────────────────────────────
 train:

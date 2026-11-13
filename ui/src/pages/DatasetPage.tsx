@@ -1,53 +1,47 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { getDatasetSummary, type DatasetSummary } from '../api/client'
 
-// ── Pre-computed EDA data (CIC-IDS2017, 2,830,743 flows) ─────────────────────
+// ── Snapshot constants (CIC-IDS2017 baseline — used when make eda has not run) ─
 
-const CLASS_LABELS = [
+const SNAP_CLASS_LABELS = [
   'BENIGN', 'DoS Hulk', 'PortScan', 'DDoS', 'DoS GoldenEye',
   'FTP-Patator', 'SSH-Patator', 'DoS slowloris', 'DoS Slowhttptest',
   'Bot', 'Web Attack Brute Force', 'Web Attack XSS',
   'Infiltration', 'Web Attack SQL Injection', 'Heartbleed',
 ]
-const CLASS_COUNTS = [
+const SNAP_CLASS_COUNTS = [
   2273097, 231073, 158930, 128027, 10293,
   7938, 5897, 5796, 5499, 1966, 1507, 652, 36, 21, 11,
 ]
-
-const DAYS = [
+const SNAP_DAYS = [
   'Monday', 'Tuesday', 'Wednesday', 'Thu AM', 'Thu PM',
   'Fri AM', 'Fri PM\n(DDoS)', 'Fri PM\n(Scan)',
 ]
-const BENIGN_BY_DAY = [529918, 432074, 440031, 168186, 288566, 189067, 97718, 127537]
-const ATTACK_TYPES = [
+const SNAP_BENIGN_BY_DAY = [529918, 432074, 440031, 168186, 288566, 189067, 97718, 127537]
+const SNAP_ATTACK_TYPES = [
   'FTP-Patator', 'SSH-Patator', 'DoS Hulk', 'DoS GoldenEye',
   'DoS slowloris', 'DoS Slowhttptest', 'Heartbleed',
   'Web Brute Force', 'Web XSS', 'Web SQL Injection',
   'Infiltration', 'Bot', 'DDoS', 'PortScan',
 ]
-const ATTACK_PALETTE = [
-  '#4361ee', '#7209b7', '#f72585', '#b5179e', '#560bad', '#480ca8', '#3a0ca3',
-  '#e63946', '#f4a261', '#2a9d8f', '#06d6a0', '#118ab2', '#073b4c', '#ef476f',
+const SNAP_ATTACK_BY_DAY: number[][] = [
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+  [7938,5897,0,0,0,0,0,0,0,0,0,0,0,0],
+  [0,0,231073,10293,5796,5499,11,0,0,0,0,0,0,0],
+  [0,0,0,0,0,0,0,1507,652,21,0,0,0,0],
+  [0,0,0,0,0,0,0,0,0,0,36,0,0,0],
+  [0,0,0,0,0,0,0,0,0,0,0,1966,0,0],
+  [0,0,0,0,0,0,0,0,0,0,0,0,128027,0],
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,158930],
 ]
-// [day index][attack type index] = count
-const ATTACK_BY_DAY: number[][] = [
-  [0,0,0,0,0,0,0,0,0,0,0,0,0,0],         // Monday
-  [7938,5897,0,0,0,0,0,0,0,0,0,0,0,0],   // Tuesday
-  [0,0,231073,10293,5796,5499,11,0,0,0,0,0,0,0], // Wednesday
-  [0,0,0,0,0,0,0,1507,652,21,0,0,0,0],   // Thu AM
-  [0,0,0,0,0,0,0,0,0,0,36,0,0,0],        // Thu PM
-  [0,0,0,0,0,0,0,0,0,0,0,1966,0,0],      // Fri AM
-  [0,0,0,0,0,0,0,0,0,0,0,0,128027,0],    // Fri PM (DDoS)
-  [0,0,0,0,0,0,0,0,0,0,0,0,0,158930],    // Fri PM (Scan)
-]
-
-const CORR_SHORT = [
+const SNAP_CORR_SHORT = [
   'Flow IAT Std', 'Flow IAT Mean', 'Fwd IAT Mean', 'Bwd IAT Max',
   'Flow IAT Max', 'Fwd IAT Max', 'Bwd IAT Mean', 'Fwd IAT Min',
   'Bwd IAT Min', 'Flow Duration', 'Fwd IAT Total', 'Bwd IAT Total',
   'Max Pkt Len', 'Bwd Pkt Max', 'Bwd Pkt Std',
   'Min Pkt Len', 'Fwd Pkt Min', 'Bwd Pkt Mean', 'Fwd Pkt Std', 'Dest Port',
 ]
-const CORR_MATRIX: number[][] = [
+const SNAP_CORR_MATRIX: number[][] = [
   [1.000,0.974,0.966,0.883,0.908,0.906,0.940,0.915,0.902,0.533,0.532,0.506,-0.125,-0.132,-0.151,0.342,0.338,-0.124,-0.101,-0.186],
   [0.974,1.000,0.989,0.822,0.821,0.822,0.952,0.958,0.929,0.479,0.479,0.469,-0.161,-0.173,-0.191,0.344,0.341,-0.167,-0.117,-0.172],
   [0.966,0.989,1.000,0.823,0.795,0.799,0.975,0.984,0.962,0.437,0.439,0.444,-0.166,-0.180,-0.201,0.365,0.361,-0.165,-0.119,-0.155],
@@ -69,6 +63,79 @@ const CORR_MATRIX: number[][] = [
   [-0.101,-0.117,-0.119,-0.055,-0.040,-0.045,-0.115,-0.125,-0.123,0.083,0.078,0.078,0.695,0.299,0.343,-0.229,-0.228,0.205,1.000,-0.078],
   [-0.186,-0.172,-0.155,-0.194,-0.209,-0.203,-0.151,-0.125,-0.124,-0.243,-0.239,-0.229,-0.192,-0.242,-0.250,-0.179,-0.169,-0.236,-0.078,1.000],
 ]
+
+// ── Shared attack palette (stable order by index) ─────────────────────────────
+const ATTACK_PALETTE = [
+  '#4361ee', '#7209b7', '#f72585', '#b5179e', '#560bad', '#480ca8', '#3a0ca3',
+  '#e63946', '#f4a261', '#2a9d8f', '#06d6a0', '#118ab2', '#073b4c', '#ef476f',
+  '#d62828', '#a8dadc', '#457b9d', '#1d3557', '#e9c46a', '#264653',
+]
+
+// ── Derive chart data from API summary ───────────────────────────────────────
+
+interface ChartData {
+  classLabels: string[]
+  classCounts: number[]
+  days: string[]
+  benignByDay: number[]
+  attackTypes: string[]
+  attackByDay: number[][]
+  corrShort: string[]
+  corrMatrix: number[][]
+  totalFlows: number
+  featureCounts?: DatasetSummary['feature_counts']
+}
+
+function snapshotData(): ChartData {
+  const total = SNAP_CLASS_COUNTS.reduce((a, b) => a + b, 0)
+  return {
+    classLabels: SNAP_CLASS_LABELS,
+    classCounts: SNAP_CLASS_COUNTS,
+    days: SNAP_DAYS,
+    benignByDay: SNAP_BENIGN_BY_DAY,
+    attackTypes: SNAP_ATTACK_TYPES,
+    attackByDay: SNAP_ATTACK_BY_DAY,
+    corrShort: SNAP_CORR_SHORT,
+    corrMatrix: SNAP_CORR_MATRIX,
+    totalFlows: total,
+  }
+}
+
+function fromApiSummary(s: DatasetSummary): ChartData {
+  const classLabels = s.class_counts.map(c => c.label)
+  const classCounts = s.class_counts.map(c => c.count)
+  const totalFlows  = s.total_flows
+
+  // Build ordered attack type list (by total count desc, benign excluded)
+  const attackTotals: Record<string, number> = {}
+  for (const day of s.days) {
+    for (const [lbl, cnt] of Object.entries(day.attacks)) {
+      attackTotals[lbl] = (attackTotals[lbl] ?? 0) + cnt
+    }
+  }
+  const attackTypes = Object.entries(attackTotals)
+    .sort(([, a], [, b]) => b - a)
+    .map(([lbl]) => lbl)
+
+  const days      = s.days.map(d => d.name)
+  const benignByDay = s.days.map(d => d.benign)
+  const attackByDay = s.days.map(d =>
+    attackTypes.map(t => d.attacks[t] ?? 0)
+  )
+
+  return {
+    classLabels,
+    classCounts,
+    days,
+    benignByDay,
+    attackTypes,
+    attackByDay,
+    corrShort: s.corr_features,
+    corrMatrix: s.corr_matrix,
+    totalFlows,
+    featureCounts: s.feature_counts,
+  }
+}
 
 // ── Canvas hook ───────────────────────────────────────────────────────────────
 
@@ -127,12 +194,13 @@ function corrColor(v: number, dark: boolean): string {
 
 // ── Chart 0: Class imbalance donut ────────────────────────────────────────────
 
-const TOTAL_FLOWS  = CLASS_COUNTS.reduce((a, b) => a + b, 0)
-const BENIGN_COUNT = CLASS_COUNTS[0]
-const ATTACK_COUNT = TOTAL_FLOWS - BENIGN_COUNT
-
-function ClassImbalanceDonut() {
+function ClassImbalanceDonut({ classCounts, totalFlows }: { classCounts: number[]; totalFlows: number }) {
+  const benignCount = classCounts[0] ?? 0
+  const attackCount = totalFlows - benignCount
   const ref = useCanvas((ctx, w, h, dark) => {
+    const BENIGN_COUNT = benignCount
+    const ATTACK_COUNT = attackCount
+    const TOTAL_FLOWS  = totalFlows
     const cx = w / 2
     const cy = h / 2
     const outerR = Math.min(cx, cy) - 8
@@ -197,14 +265,14 @@ function ClassImbalanceDonut() {
       ctx.fillText(label, lx + 13, ly)
       lx += ctx.measureText(label).width + 32
     })
-  }, [])
+  }, [benignCount, attackCount, totalFlows])
 
   return <canvas ref={ref} style={{ width: '100%', height: '220px', display: 'block' }} />
 }
 
 // ── Chart 1: Class distribution (horizontal log-scale bar) ───────────────────
 
-function ClassDistributionChart() {
+function ClassDistributionChart({ classLabels, classCounts }: { classLabels: string[]; classCounts: number[] }) {
   const ref = useCanvas((ctx, w, h, dark) => {
     const fg2  = dark ? '#9ba3c0' : '#4a5068'
     const fg3  = dark ? '#5c6480' : '#8891aa'
@@ -216,7 +284,7 @@ function ClassDistributionChart() {
     const marginB = 30
     const barH = 18
     const gap = 6
-    const n = CLASS_LABELS.length
+    const n = classLabels.length
     const neededH = marginT + marginB + n * (barH + gap)
 
     // resize canvas height if needed
@@ -250,8 +318,8 @@ function ClassDistributionChart() {
     })
 
     // Bars + labels
-    CLASS_LABELS.forEach((label, i) => {
-      const count = CLASS_COUNTS[i]
+    classLabels.forEach((label, i) => {
+      const count = classCounts[i]
       const y = marginT + i * (barH + gap)
       const barW = toX(count) - marginL
 
@@ -277,19 +345,24 @@ function ClassDistributionChart() {
         : count >= 1_000 ? (count / 1_000).toFixed(1) + 'k' : String(count)
       ctx.fillText(countStr, marginL + barW + 4, y + barH / 2)
     })
-  }, [])
+  }, [classLabels, classCounts])
 
   return (
     <canvas
       ref={ref}
-      style={{ width: '100%', height: `${CLASS_LABELS.length * 24 + 42}px`, display: 'block' }}
+      style={{ width: '100%', height: `${classLabels.length * 24 + 42}px`, display: 'block' }}
     />
   )
 }
 
 // ── Chart 2: Stacked bar — attacks by capture day ────────────────────────────
 
-function AttackByDayChart() {
+function AttackByDayChart({ days, benignByDay, attackTypes, attackByDay }: {
+  days: string[]
+  benignByDay: number[]
+  attackTypes: string[]
+  attackByDay: number[][]
+}) {
   const ref = useCanvas((ctx, w, h, dark) => {
     const fg2  = dark ? '#9ba3c0' : '#4a5068'
     const fg3  = dark ? '#5c6480' : '#8891aa'
@@ -304,15 +377,15 @@ function AttackByDayChart() {
     const chartH = h - marginT - marginB
     const chartW = w - marginL - marginR
 
-    const nDays = DAYS.length
+    const nDays = days.length
     const barW = Math.floor((chartW / nDays) * 0.65)
     const barSpacing = chartW / nDays
 
     // Max stack height
     const maxVal = Math.max(
-      ...DAYS.map((_, di) => {
-        const benign = BENIGN_BY_DAY[di]
-        const attacks = ATTACK_BY_DAY[di].reduce((a, b) => a + b, 0)
+      ...days.map((_, di) => {
+        const benign = benignByDay[di]
+        const attacks = attackByDay[di].reduce((a, b) => a + b, 0)
         return benign + attacks
       })
     )
@@ -333,12 +406,12 @@ function AttackByDayChart() {
     })
 
     // Bars
-    DAYS.forEach((day, di) => {
+    days.forEach((day, di) => {
       const cx = marginL + di * barSpacing + barSpacing / 2
       const x = cx - barW / 2
 
       // Benign (bottom)
-      const benign = BENIGN_BY_DAY[di]
+      const benign = benignByDay[di]
       const benignH = (benign / maxVal) * chartH
       ctx.fillStyle = benignColor
       ctx.strokeStyle = benignBorder
@@ -349,12 +422,12 @@ function AttackByDayChart() {
 
       // Attack types (stacked above benign)
       let stackBase = benign
-      ATTACK_BY_DAY[di].forEach((count, ai) => {
+      attackByDay[di].forEach((count, ai) => {
         if (count === 0) return
         const y0 = toY(stackBase + count)
         const segH = (count / maxVal) * chartH
-        ctx.fillStyle = ATTACK_PALETTE[ai] + 'cc'
-        ctx.strokeStyle = ATTACK_PALETTE[ai]
+        ctx.fillStyle = ATTACK_PALETTE[ai % ATTACK_PALETTE.length] + 'cc'
+        ctx.strokeStyle = ATTACK_PALETTE[ai % ATTACK_PALETTE.length]
         ctx.lineWidth = 0.5
         ctx.beginPath()
         ctx.roundRect(x, y0, barW, segH, 1)
@@ -372,8 +445,8 @@ function AttackByDayChart() {
     })
 
     // Legend — attack types with nonzero total
-    const legendTypes = ATTACK_TYPES.map((name, i) => ({ name, color: ATTACK_PALETTE[i] }))
-      .filter((_, i) => ATTACK_BY_DAY.some(d => d[i] > 0))
+    const legendTypes = attackTypes.map((name, i) => ({ name, color: ATTACK_PALETTE[i % ATTACK_PALETTE.length] }))
+      .filter((_, i) => attackByDay.some(d => d[i] > 0))
 
     let lx = marginL, ly = h - marginB + 32
     ctx.font = '9px system-ui, sans-serif'
@@ -395,16 +468,16 @@ function AttackByDayChart() {
     ctx.beginPath(); ctx.rect(marginL, ly + 10 - 4, 8, 8); ctx.fill(); ctx.stroke()
     ctx.fillStyle = fg3; ctx.textAlign = 'left'
     ctx.fillText('BENIGN', marginL + 10, ly + 10)
-  }, [])
+  }, [days, benignByDay, attackTypes, attackByDay])
 
   return <canvas ref={ref} style={{ width: '100%', height: '320px', display: 'block' }} />
 }
 
 // ── Chart 3: Correlation heatmap ─────────────────────────────────────────────
 
-function CorrelationHeatmap() {
+function CorrelationHeatmap({ corrShort, corrMatrix }: { corrShort: string[]; corrMatrix: number[][] }) {
   const ref = useCanvas((ctx, w, _h, dark) => {
-    const n = CORR_SHORT.length
+    const n = corrShort.length
     const fg3 = dark ? '#5c6480' : '#8891aa'
     const labelFont = '9px system-ui, sans-serif'
 
@@ -416,7 +489,7 @@ function CorrelationHeatmap() {
     // Cells
     for (let r = 0; r < n; r++) {
       for (let c = 0; c < n; c++) {
-        const v = CORR_MATRIX[r][c]
+        const v = corrMatrix[r]?.[c] ?? 0
         const x = labelW + c * cellSize
         const y = labelH + r * cellSize
         ctx.fillStyle = corrColor(v, dark)
@@ -439,7 +512,7 @@ function CorrelationHeatmap() {
     ctx.textAlign = 'right'
     ctx.textBaseline = 'middle'
     for (let r = 0; r < n; r++) {
-      ctx.fillText(CORR_SHORT[r], labelW - 4, labelH + r * cellSize + cellSize / 2)
+      ctx.fillText(corrShort[r], labelW - 4, labelH + r * cellSize + cellSize / 2)
     }
 
     // Column labels (rotated)
@@ -452,7 +525,7 @@ function CorrelationHeatmap() {
       ctx.font = labelFont
       ctx.textAlign = 'left'
       ctx.textBaseline = 'middle'
-      ctx.fillText(CORR_SHORT[c], 0, 0)
+      ctx.fillText(corrShort[c], 0, 0)
       ctx.restore()
     }
 
@@ -475,12 +548,12 @@ function CorrelationHeatmap() {
     ctx.fillText('0', barX + barW2 / 2, barY + barH2 + 2)
     ctx.textAlign = 'right'
     ctx.fillText('+1.0', barX + barW2, barY + barH2 + 2)
-  }, [])
+  }, [corrShort, corrMatrix])
 
   return (
     <canvas
       ref={ref}
-      style={{ width: '800px', minWidth: '800px', height: `${20 * 36 + 90}px`, display: 'block' }}
+      style={{ width: '800px', minWidth: '800px', height: `${corrShort.length * 36 + 90}px`, display: 'block' }}
     />
   )
 }
@@ -514,23 +587,79 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function DatasetPage() {
+  const [apiSummary, setApiSummary] = useState<DatasetSummary | null>(null)
+  const [isSnapshot, setIsSnapshot] = useState(true)
+
+  useEffect(() => {
+    getDatasetSummary()
+      .then(s => { setApiSummary(s); setIsSnapshot(false) })
+      .catch(() => setIsSnapshot(true))
+  }, [])
+
+  const data: ChartData = apiSummary ? fromApiSummary(apiSummary) : snapshotData()
+
+  const totalFlows   = data.totalFlows
+  const benignCount  = data.classCounts[0] ?? 0
+  const attackClasses = data.classLabels.filter(l => l !== 'BENIGN').length
+  const rawFeatures  = data.featureCounts?.raw ?? 79
+  const benignPct    = totalFlows > 0 ? (benignCount / totalFlows * 100).toFixed(1) : '—'
+
+  const fmtFlows = (n: number) =>
+    n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(0)}k` : String(n)
+
   return (
     <div className="w-full max-w-5xl mx-auto space-y-8">
 
       {/* Header */}
       <div>
-        <h2 className="text-lg font-semibold text-white">Dataset — CIC-IDS2017</h2>
-        <p className="text-sm text-gray-400 mt-1">
-          Exploratory data analysis of the training corpus. Each finding below informed a specific
-          architectural decision in the AFD V2 pipeline.
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-white">Dataset — CIC-IDS2017</h2>
+            <p className="text-sm text-gray-400 mt-1">
+              Exploratory data analysis of the training corpus. Each finding below informed a specific
+              architectural decision in the AFD V2 pipeline.
+            </p>
+          </div>
+          {isSnapshot ? (
+            <span className="shrink-0 text-xs text-gray-500 bg-gray-900 border border-gray-800 rounded px-2.5 py-1.5 leading-tight text-right">
+              Snapshot data<br />
+              <code className="text-gray-400">make eda</code> to refresh
+            </span>
+          ) : (
+            <span className="shrink-0 text-xs text-green-400 bg-green-900/20 border border-green-800/40 rounded px-2.5 py-1.5 leading-tight text-right">
+              Live EDA data<br />
+              {new Date(apiSummary!.generated_at).toLocaleDateString()}
+            </span>
+          )}
+        </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
-          <Stat label="Total flows" value="2.83M" />
-          <Stat label="Benign" value="80.3%" accent="border-blue-900/40 bg-blue-900/10" />
-          <Stat label="Attack classes" value="15" accent="border-red-900/40 bg-red-900/10" />
-          <Stat label="Raw features" value="79" />
+          <Stat label="Total flows" value={fmtFlows(totalFlows)} />
+          <Stat label="Benign" value={`${benignPct}%`} accent="border-blue-900/40 bg-blue-900/10" />
+          <Stat label="Attack classes" value={String(attackClasses)} accent="border-red-900/40 bg-red-900/10" />
+          <Stat label="Raw features" value={String(rawFeatures)} />
         </div>
+
+        {/* Preprocessing pipeline counts — only shown when EDA has been run */}
+        {data.featureCounts && (
+          <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-500">
+            <span className="bg-gray-900 border border-gray-800 rounded px-2 py-1">
+              Raw <span className="text-white font-mono">{data.featureCounts.raw}</span>
+            </span>
+            <span className="text-gray-700 self-center">→</span>
+            <span className="bg-gray-900 border border-gray-800 rounded px-2 py-1">
+              After variance <span className="text-white font-mono">{data.featureCounts.after_variance}</span>
+            </span>
+            <span className="text-gray-700 self-center">→</span>
+            <span className="bg-gray-900 border border-gray-800 rounded px-2 py-1">
+              After correlation <span className="text-white font-mono">{data.featureCounts.after_correlation}</span>
+            </span>
+            <span className="text-gray-700 self-center">→</span>
+            <span className="bg-gray-900 border border-green-900/50 rounded px-2 py-1">
+              Selected <span className="text-green-400 font-mono">{data.featureCounts.after_selector}</span>
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Figure 1 */}
@@ -538,30 +667,28 @@ export default function DatasetPage() {
         <div>
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Figure 1</p>
           <h3 className="text-sm font-semibold text-white mt-0.5">
-            Class distribution — all 15 attack types
+            Class distribution — {attackClasses} attack types
           </h3>
-          <p className="text-xs text-gray-500 mt-0.5">Log-scale x-axis · full 2.83M-flow corpus · no sampling</p>
+          <p className="text-xs text-gray-500 mt-0.5">Log-scale x-axis · full {fmtFlows(totalFlows)}-flow corpus · no sampling</p>
         </div>
 
-        {/* Two-column: donut (binary split) + per-class bar */}
         <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6 items-start">
           <div>
             <p className="text-xs text-gray-500 text-center mb-1 uppercase tracking-wide">Binary split</p>
-            <ClassImbalanceDonut />
+            <ClassImbalanceDonut classCounts={data.classCounts} totalFlows={data.totalFlows} />
           </div>
           <div>
             <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">Per-class breakdown (log scale)</p>
             <div className="overflow-x-auto">
-              <ClassDistributionChart />
+              <ClassDistributionChart classLabels={data.classLabels} classCounts={data.classCounts} />
             </div>
           </div>
         </div>
 
         <Insight adr="Motivates ADR-04 & ADR-14">
           <strong className="text-white">Why plain accuracy is misleading:</strong>{' '}
-          A classifier that always predicts BENIGN would score <strong className="text-white">80.3% accuracy</strong> without
-          detecting a single attack. BENIGN (2.27M flows) outnumbers the largest attack class DoS Hulk by 10×, and
-          Heartbleed by 207,000×. This imbalance is why the pipeline uses{' '}
+          A classifier that always predicts BENIGN would score <strong className="text-white">{benignPct}% accuracy</strong> without
+          detecting a single attack. This imbalance is why the pipeline uses{' '}
           <span className="text-blue-300">F1-score, Precision/Recall and ROC-AUC</span> as primary metrics, and
           applies <span className="text-blue-300">SMOTE oversampling</span> (capped per class) on the training split only.
         </Insight>
@@ -571,14 +698,17 @@ export default function DatasetPage() {
       <div className="bg-gray-900 border border-gray-800 rounded-lg p-5 space-y-4">
         <div>
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Figure 2</p>
-          <h3 className="text-sm font-semibold text-white mt-0.5">
-            Attack types by capture day
-          </h3>
+          <h3 className="text-sm font-semibold text-white mt-0.5">Attack types by capture day</h3>
           <p className="text-xs text-gray-500 mt-0.5">Blue = benign flows · coloured segments = attack types · each day introduces new, unseen classes</p>
         </div>
 
         <div className="overflow-x-auto">
-          <AttackByDayChart />
+          <AttackByDayChart
+            days={data.days}
+            benignByDay={data.benignByDay}
+            attackTypes={data.attackTypes}
+            attackByDay={data.attackByDay}
+          />
         </div>
 
         <Insight adr="Motivates ADR-02 (day-based temporal split)">
@@ -593,32 +723,36 @@ export default function DatasetPage() {
       </div>
 
       {/* Figure 3 */}
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-5 space-y-4">
-        <div>
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Figure 3</p>
-          <h3 className="text-sm font-semibold text-white mt-0.5">
-            Feature correlation heatmap — top-20 features by mean |ρ|
-          </h3>
-          <p className="text-xs text-gray-500 mt-0.5">
-            Pearson ρ · 5,000 benign flows sampled from Monday · red = strong positive · blue = strong negative
-          </p>
-        </div>
+      {data.corrShort.length > 0 && (
+        <div className="bg-gray-900 border border-gray-800 rounded-lg p-5 space-y-4">
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Figure 3</p>
+            <h3 className="text-sm font-semibold text-white mt-0.5">
+              Feature correlation heatmap — top-{data.corrShort.length} features by mean |ρ|
+            </h3>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Pearson ρ · {BENIGN_SAMPLE_N.toLocaleString()} benign flows sampled · red = strong positive · blue = strong negative
+            </p>
+          </div>
 
-        <div className="overflow-x-auto">
-          <CorrelationHeatmap />
-        </div>
+          <div className="overflow-x-auto">
+            <CorrelationHeatmap corrShort={data.corrShort} corrMatrix={data.corrMatrix} />
+          </div>
 
-        <Insight adr="Motivates ADR-10 (correlation filter)">
-          <strong className="text-white">Two redundant feature clusters:</strong>{' '}
-          IAT features (Flow/Fwd/Bwd Inter-Arrival Times) form a tightly correlated block with ρ ≈ 0.95–0.99 —
-          keeping all of them adds noise without information.
-          Packet-length features (Max/Bwd Packet Length, Bwd Packet Length Std/Mean) form a second cluster at ρ ≈ 0.75–0.92.
-          The <span className="text-blue-300">correlation pruning step</span> drops one feature from each pair
-          where ρ {'>'} threshold (default 0.95), reducing 79 raw features to ~40 without measurable loss in
-          classifier performance or AE reconstruction fidelity.
-        </Insight>
-      </div>
+          <Insight adr="Motivates ADR-10 (correlation filter)">
+            <strong className="text-white">Two redundant feature clusters:</strong>{' '}
+            IAT features (Flow/Fwd/Bwd Inter-Arrival Times) form a tightly correlated block with ρ ≈ 0.95–0.99 —
+            keeping all of them adds noise without information.
+            Packet-length features form a second cluster at ρ ≈ 0.75–0.92.
+            The <span className="text-blue-300">correlation pruning step</span> drops one feature from each pair
+            where ρ {'>'} threshold, reducing raw features to ~{data.featureCounts?.after_correlation ?? '~40'} without
+            measurable loss in classifier performance or AE reconstruction fidelity.
+          </Insight>
+        </div>
+      )}
 
     </div>
   )
 }
+
+const BENIGN_SAMPLE_N = 5_000

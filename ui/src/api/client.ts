@@ -215,6 +215,39 @@ export interface DashboardSummary {
 
 export const getDashboardSummary = () => request<DashboardSummary>('/api/dashboard/summary')
 
+// ── Dataset EDA ───────────────────────────────────────────────────────────────
+
+export interface ClassCount {
+  label: string
+  count: number
+}
+
+export interface DayBreakdown {
+  name: string
+  split: string
+  benign: number
+  attacks: Record<string, number>
+}
+
+export interface FeatureCounts {
+  raw: number
+  after_variance: number
+  after_correlation: number
+  after_selector: number
+}
+
+export interface DatasetSummary {
+  total_flows: number
+  class_counts: ClassCount[]
+  days: DayBreakdown[]
+  corr_features: string[]
+  corr_matrix: number[][]
+  feature_counts: FeatureCounts
+  generated_at: string
+}
+
+export const getDatasetSummary = () => request<DatasetSummary>('/api/dataset/summary')
+
 export async function promoteModel(id: number): Promise<ModelVersionResponse> {
   const res = await fetch(`/api/models/${id}/promote`, { method: 'POST' })
   if (!res.ok) {
