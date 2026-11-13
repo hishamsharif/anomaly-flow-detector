@@ -191,9 +191,24 @@ export default function TrainingPage() {
             <tr className="text-xs text-gray-500 border-b border-gray-800">
               <th className="text-left px-5 py-3">Name</th>
               <th className="text-left px-4 py-3">Status</th>
-              <th className="text-left px-4 py-3">F1</th>
-              <th className="text-left px-4 py-3">FAR</th>
-              <th className="text-left px-4 py-3">Miss Rate ↓</th>
+              <th
+                className="text-left px-4 py-3 cursor-help"
+                title="F1-score — harmonic mean of Precision and Recall. Range 0–1; higher is better."
+              >
+                F1 <span className="text-gray-700">ⓘ</span>
+              </th>
+              <th
+                className="text-left px-4 py-3 cursor-help"
+                title="False Alarm Rate (FAR) — fraction of benign flows incorrectly flagged as attacks. Lower is better."
+              >
+                FAR <span className="text-gray-700">ⓘ</span>
+              </th>
+              <th
+                className="text-left px-4 py-3 cursor-help"
+                title="Attack Miss Rate (AMR) — fraction of true attack flows that escaped detection. Lower is better. 1.000 = AE threshold not yet calibrated."
+              >
+                Miss Rate ↓ <span className="text-gray-700">ⓘ</span>
+              </th>
               <th className="text-left px-4 py-3">Created</th>
               <th className="px-4 py-3"></th>
             </tr>
@@ -214,12 +229,27 @@ export default function TrainingPage() {
                       {m.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-gray-300">{m.metrics?.f1?.toFixed(3) ?? '—'}</td>
-                  <td className="px-4 py-3 text-gray-300">{m.metrics?.far?.toFixed(5) ?? '—'}</td>
-                  <td className="px-4 py-3 text-gray-300">{m.metrics?.amr?.toFixed(3) ?? '—'}</td>
+                  <td
+                    className="px-4 py-3 text-gray-300 cursor-help"
+                    title={m.metrics?.f1 != null ? `F1-score: ${m.metrics.f1.toFixed(6)} — harmonic mean of Precision and Recall` : undefined}
+                  >
+                    {m.metrics?.f1?.toFixed(3) ?? '—'}
+                  </td>
+                  <td
+                    className="px-4 py-3 text-gray-300 cursor-help"
+                    title={m.metrics?.far != null ? `False Alarm Rate: ${m.metrics.far.toFixed(6)} (${(m.metrics.far * 100).toFixed(4)}% of benign flows falsely flagged)` : undefined}
+                  >
+                    {m.metrics?.far?.toFixed(5) ?? '—'}
+                  </td>
+                  <td
+                    className="px-4 py-3 text-gray-300 cursor-help"
+                    title={m.metrics?.amr != null ? `Attack Miss Rate: ${m.metrics.amr.toFixed(6)} — ${(m.metrics.amr * 100).toFixed(1)}% of attacks escaped detection${m.metrics.amr >= 1.0 ? ' (AE threshold likely uncalibrated)' : ''}` : undefined}
+                  >
+                    {m.metrics?.amr?.toFixed(3) ?? '—'}
+                  </td>
                   <td className="px-4 py-3 text-gray-400">{new Date(m.created_at).toLocaleDateString()}</td>
                   <td className="px-4 py-3">
-                    {m.status === 'archived' ? (
+                    {m.status === 'archived' && (
                       <button
                         onClick={() => handlePromote(m.id)}
                         disabled={promotingId === m.id}
@@ -227,8 +257,6 @@ export default function TrainingPage() {
                       >
                         {promotingId === m.id ? '…' : 'Promote'}
                       </button>
-                    ) : (
-                      <span className="text-xs text-gray-600">—</span>
                     )}
                   </td>
                 </tr>
