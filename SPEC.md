@@ -4,8 +4,8 @@
 > from it. Before changing behaviour, change the spec first. Drift between the spec and the
 > running system is a bug.
 
-**Version:** 2.0.0  
-**Date:** 2026-11-02  
+**Version:** 2.1.0  
+**Date:** 2026-11-13  
 **Supersedes:** `dev/anomaly-net-flow/` (V1, CS7003NU A2 implementation)  
 **Assessment:** CS7003NU A2 — Individual Coursework (criterion a + b)
 
@@ -119,10 +119,10 @@ An analyst's judgment on one Alert.
 |----|-----------|-------------|
 | I1 | At most one ModelVersion is active at any time | DB UNIQUE partial index + promote endpoint |
 | I2 | Alerts are append-only (except verdict fields) | No UPDATE on non-verdict columns in CRUD layer |
-| I3 | Inference validates feature shape against active model's `feature_names.json` | `csv_adapter.py` shape check before pipeline entry |
+| I3 | Inference validates feature shape against active model's `feature_names.json` | `pipeline/inference/adapters/csv_adapter.py` shape check before pipeline entry |
 | I4 | AE fine-tune requires `eligible_verdicts ≥ FINE_TUNE_K_THRESHOLD` | Checked in `POST /api/training/start` |
-| I5 | XGBoost artifacts copied unchanged during AE fine-tune | `fine_tune.py` copies `classifier.joblib` without loading it |
-| I6 | Artifact directory write is atomic | Write to `models/tmp_<run_id>/`, rename to `models/<name>/` on success |
+| I5 | XGBoost artifacts copied unchanged during AE fine-tune | `pipeline/training/train_detector.py` copies `classifier.joblib` without loading it |
+| I6 | Artifact directory write is atomic | Write to `artifacts/tmp_<run_id>/`, rename to `artifacts/<name>/` on success |
 
 ### 3.3 3-Stage Pipeline State Machine
 
@@ -355,7 +355,7 @@ GET /api/about
 ### 5.0 Data Understanding — EDA
 
 Before any model is trained, an exploratory analysis of CIC-IDS2017 must be produced and
-saved to `training/eda/eda_cicids2017.ipynb`. The notebook is a living artefact: it is
+saved to `pipeline/eda/cicids2017.ipynb`. The notebook is a living artefact: it is
 produced once, committed, and updated when the dataset understanding changes. It directly
 informs — and is cited in — the A2 report.
 
@@ -384,7 +384,7 @@ informs — and is cited in — the A2 report.
 
 **Outputs — artifact directory (atomic write):**
 ```
-models/<name>/
+artifacts/<name>/
   classifier.joblib       fitted classifier (XGBoost or RF)
   detector.pt             MLP-AE state dict  (or detector.joblib for IF)
   clf_scaler.joblib       scaler for classifier data path
@@ -524,7 +524,7 @@ All settings have working defaults. Override via `.env` file or environment vari
 |----------|------|---------|-------------|
 | `DATABASE_URL` | str | `sqlite+aiosqlite:///./data/afd.db` | SQLite DB path |
 | `BUNDLED_DATASET_DIR` | str | `data/CIC-IDS2017` | CIC-IDS2017 CSV folder |
-| `MODEL_ARTIFACT_DIR` | str | `models` | Trained model artifacts root |
+| `MODEL_ARTIFACT_DIR` | str | `artifacts` | Trained model artifacts root |
 | `FINE_TUNE_K_THRESHOLD` | int | `50` | Eligible verdicts to unlock AE retrain |
 | `AE_ANOMALY_THRESHOLD_PERCENTILE` | float | `95.0` | p-tile of val-benign errors for threshold |
 | `AE_REPLAY_BUFFER_FRACTION` | float | `0.10` | Historical benign fraction replayed during retrain |
@@ -587,77 +587,96 @@ the CUDA torch wheel (`--build-arg TORCH_BUILD_TYPE=cu121` rebuild) and
 ```
 anomaly-flow-detector/
 ├── SPEC.md                         ← this file (authoritative contract)
-├── Makefile                        ← make setup | resetup | start | stop | migrate | test | lint
+├── Makefile                        ← make setup | resetup | eda | train | infer | start | stop | migrate | test | lint
+├── alembic.ini                     ← script_location = db/migrations
 ├── config/
 │   └── settings.py                 ← Settings (pydantic-settings); ONLY place config lives
 ├── db/
 │   ├── base.py                     ← shared DeclarativeBase (no FastAPI dependency)
 │   ├── models.py                   ← SQLAlchemy ORM (derived from schemas.py)
-│   └── utils/
-│       └── sync_ops.py             ← sync DB helpers for training pipelines (zero api/ imports — SPEC §9)
+│   ├── utils/
+│   │   └── sync_ops.py             ← sync DB helpers (zero api/ imports — usable by pipeline/ and api/)
+│   └── migrations/                 ← Alembic migration scripts (was alembic/ at root)
+│       ├── env.py
+│       └── versions/
 ├── api/
-│   ├── main.py                     ← FastAPI app, lifespan, CORS, router includes
-│   ├── schemas.py                  ← ALL Pydantic request/response schemas ← SDD contract layer
-│   ├── jobs.py                     ← ThreadPoolExecutor + SSE bridge (~147 lines: training jobs + predict jobs)
-│   ├── dao/
-│   │   ├── db_conn.py              ← async engine, AsyncSessionLocal, get_db FastAPI dependency
-│   │   ├── alerts.py               ← alert CRUD (sync for thread workers, async for routers)
-│   │   ├── model_versions.py       ← model-version CRUD
-│   │   └── dashboard.py            ← dashboard summary query
-│   └── routers/
-│       ├── health.py
-│       ├── models.py
-│       ├── training.py
-│       ├── inference.py
-│       └── alerts.py
-├── core/
-│   ├── base.py                     ← BaseClassifier + BaseAnomalyDetector protocols
+│   ├── http/                       ← HTTP boundary layer (FastAPI app)
+│   │   ├── main.py                 ← FastAPI app, lifespan, CORS, router includes
+│   │   ├── schemas.py              ← ALL Pydantic request/response schemas ← SDD contract layer
+│   │   ├── jobs.py                 ← ThreadPoolExecutor + SSE bridge (training jobs + predict jobs)
+│   │   ├── dao/
+│   │   │   ├── db_conn.py          ← async engine, AsyncSessionLocal, get_db FastAPI dependency
+│   │   │   ├── alerts.py           ← alert CRUD (sync for thread workers, async for routers)
+│   │   │   ├── model_versions.py   ← model-version CRUD
+│   │   │   └── dashboard.py        ← dashboard summary query
+│   │   └── routers/
+│   │       ├── health.py
+│   │       ├── models.py
+│   │       ├── training.py
+│   │       ├── predict.py
+│   │       ├── alerts.py
+│   │       ├── dashboard.py
+│   │       ├── about.py
+│   │       └── dataset.py
+│   └── offline/                    ← CLI boundary layer (make eda / train / infer)
+│       ├── eda.py                  ← entry point: calls pipeline.coordinator.run_eda()
+│       ├── train.py                ← entry point: calls pipeline.coordinator.run_training()
+│       └── infer.py                ← entry point: calls pipeline.coordinator.run_inference()
+├── pipeline/                       ← all ML pipeline logic (zero HTTP/DB/filesystem dependencies)
+│   ├── coordinator.py              ← orchestrates all ML stages; on_progress callback bridges offline/HTTP
 │   ├── rule_engine.py              ← deterministic rule evaluation; always takes precedence over ML
-│   ├── registry.py                 ← CLASSIFIERS / ANOMALY_DETECTORS dicts (one line to add)
 │   ├── store.py                    ← ModelStore singleton (in-memory active model)
-│   ├── classifiers/
-│   │   ├── xgboost_clf.py
-│   │   └── random_forest_clf.py
-│   └── detectors/
-│       ├── mlp_ae.py
-│       └── isolation_forest.py
-├── training/
-│   ├── train_offline.py            ← offline initial training entry point (`make train`)
-│   ├── pipelines/
-│   │   ├── initial.py              ← CIC-IDS2017 → artifacts; no api.config import
-│   │   └── fine_tune.py            ← AE-only retrain; no api.config import
-│   ├── feature_eng/
-│   │   ├── variance_filter.py      ← drop features ≤ VARIANCE_THRESHOLD
-│   │   ├── correlation_filter.py   ← drop correlated features ≥ CORR_THRESHOLD
-│   │   ├── selector.py             ← MI / RFE selector (saves variance_mask, corr_mask)
-│   │   └── pipeline.py             ← chains the three steps above
-│   └── data_loader.py              ← DuckDB CSV scan (CIC-IDS2017 loading only)
-├── inference/
-│   ├── pipeline.py                 ← 3-stage runner: rules → classifier → detector → consensus
-│   ├── inference_offline.py        ← standalone CLI examiner (no server required; `python inference/inference_offline.py --csv ...`)
-│   └── adapters/
-│       ├── csv_adapter.py          ← CSV → feature DataFrame (handles CIC-IDS2017 column names)
-│       └── pcap_adapter.py         ← PCAP → NFStream flow extraction → feature DataFrame
+│   ├── eda/
+│   │   ├── exploratory_analysis.py ← EDA + preprocessing report logic (no __main__)
+│   │   └── cicids2017.ipynb        ← research notebook; living artefact cited in A2 report
+│   ├── preprocessing/
+│   │   ├── data_loader.py          ← DuckDB CSV scan (CIC-IDS2017); returns DataFrame
+│   │   ├── feature_engineering.py  ← VarianceFilter → CorrelationFilter → FeatureSelector pipeline
+│   │   └── scalers.py              ← clf_scaler + det_scaler (dual-scaler per ADR-11)
+│   ├── models/
+│   │   ├── base.py                 ← BaseClassifier + BaseAnomalyDetector protocols (ADR-16)
+│   │   ├── registry.py             ← CLASSIFIERS / ANOMALY_DETECTORS dicts (one line to add)
+│   │   ├── classifier/
+│   │   │   └── xgboost_model.py    ← XGBoost Stage 2 classifier
+│   │   └── detector/
+│   │       └── autoencoder.py      ← MLP Autoencoder Stage 3 detector
+│   ├── training/
+│   │   ├── train_classifier.py     ← initial XGBoost training (CIC-IDS2017 → classifier.joblib)
+│   │   └── train_detector.py       ← initial AE training + HITL fine-tune; copies classifier unchanged (ADR-03)
+│   ├── evaluation/
+│   │   └── evaluate_models.py      ← threshold calibration, metrics, regression gate (FAR/recall)
+│   └── inference/
+│       ├── predict_classifier.py   ← Stage 2: apply masks → clf_scaler → XGBoost → verdict
+│       ├── score_anomalies.py      ← Stage 3: apply masks → det_scaler → AE → ae_score → verdict
+│       └── adapters/
+│           ├── csv_adapter.py      ← CSV → feature DataFrame; validates shape against feature_names.json (I3)
+│           └── pcap_adapter.py     ← PCAP → NFStream flow extraction → feature DataFrame
 ├── runtime/
 │   ├── probe.py                    ← CUDA, Docker, image inventory probes; returns HostEnvironment
 │   ├── manifest.py                 ← HostEnvironment singleton (resolved once at startup)
 │   └── preflight.py                ← structured check results for GET /api/preflight
-├── alembic/                        ← DB migrations (replaces all startup ALTER TABLE code)
-│   ├── env.py
-│   └── versions/
 ├── tests/
 │   ├── conftest.py                 ← pytest fixtures: async client, in-memory DB, mock model
-│   ├── test_health.py
-│   ├── test_models.py
-│   ├── test_training.py
-│   ├── test_inference_offline.py
-│   └── test_alerts.py
+│   ├── fixtures/
+│   │   └── sample_flows.csv
+│   ├── unit/                       ← tests with no DB or HTTP client dependency
+│   │   ├── test_health.py
+│   │   ├── test_pcap.py
+│   │   └── test_preflight.py
+│   └── integration/                ← tests using async HTTP client + in-memory DB
+│       ├── test_training.py
+│       ├── test_predict.py
+│       ├── test_alerts.py
+│       ├── test_dashboard.py
+│       ├── test_models.py
+│       └── test_fine_tune.py
 ├── ui/
 │   ├── src/
 │   │   ├── pages/
 │   │   │   ├── DashboardPage.tsx
 │   │   │   ├── TrainingPage.tsx
 │   │   │   ├── InferencePage.tsx
+│   │   │   ├── DatasetPage.tsx
 │   │   │   └── AboutPage.tsx
 │   │   ├── components/             ← shared UI components
 │   │   ├── api/
@@ -670,9 +689,9 @@ anomaly-flow-detector/
 │   ├── openapi.json                ← exported from FastAPI (`make export-spec`)
 │   └── architecture.md            ← human-readable architecture doc
 ├── data/
-│   └── CIC-IDS2017/               ← CSV files (.gitignored)
-├── models/                         ← artifact directories (.gitignored except pinned version)
-├── alembic.ini
+│   ├── CIC-IDS2017/                ← CSV files (.gitignored)
+│   └── eda_summary.json            ← generated by `make eda`; consumed by GET /api/dataset/summary
+├── artifacts/                      ← trained model artifact dirs (.gitignored except pinned version)
 ├── Dockerfile.api
 ├── Dockerfile.ui
 ├── docker-compose.yml
@@ -682,11 +701,13 @@ anomaly-flow-detector/
 ```
 
 **Key structural rules (enforced by convention):**
-- `training/` never imports from `api/` — it receives config as plain arguments
-- `core/` has zero HTTP, DB, or file-system dependencies
-- `runtime/` owns all host-environment discovery; `core/`, `training/`, and `inference/` receive resolved config as parameters — never probe the environment directly
-- `api/schemas.py` is the only place Pydantic request/response models are defined
-- All ORM models in `db/models.py` mirror schema fields (schemas are the source of truth)
+- `pipeline/` has zero HTTP, DB, or file-system dependencies — receives all config as plain arguments
+- `runtime/` owns all host-environment discovery; `pipeline/` modules never call `torch.cuda.is_available()` or read `os.environ` directly (ADR-23)
+- `api/offline/` entry points are thin — they call `pipeline.coordinator` and handle I/O only; no ML logic
+- `pipeline/coordinator.py` owns the pipeline sequencing; individual `pipeline/` modules own the ML work (ADR-24)
+- `api/http/schemas.py` is the only place Pydantic request/response models are defined (ADR-18)
+- All ORM models in `db/models.py` mirror schema fields; `db/utils/sync_ops.py` has zero `api/` imports
+- `api/http/` and `api/offline/` are the two ports of the hexagonal architecture; `pipeline/` is the core (ADR-25)
 
 ---
 
@@ -705,8 +726,8 @@ This section documents what was learned from V1 (`dev/anomaly-net-flow/`) and dr
 | Docker Compose 2-service (api + ui/nginx) | Single-command setup; worked reliably |
 | Day-based temporal split (Mon–Thu / Fri-AM / Fri-PM) | Scientifically correct for temporal data; novel-attack test set by design |
 | HITL feedback loop (analyst verdicts → threshold → retrain) | Core differentiator; K=50 threshold + encoder freeze + replay buffer worked |
-| `inference/inference_offline.py` standalone examiner entry point | 28k flows/s on GPU; no server required for demos |
-| `core/` with zero HTTP dependency | Kept ML code portable and testable; V2 strengthens this to zero HTTP, DB, and file-system dependencies |
+| `api/offline/infer.py` standalone examiner entry point | 28k flows/s on GPU; no server required for demos |
+| `pipeline/` with zero HTTP/DB/filesystem dependency | Keeps all ML code portable and testable; receives resolved config as parameters |
 | `DuckDB` for CSV loading | 10× faster than pandas for 2.8M row scan |
 
 ### What went wrong — fix in V2
@@ -742,7 +763,7 @@ Based on the [InfoQ article "Spec Driven Development: When Architecture Becomes 
 | **Generation** | `api/schemas.py` → FastAPI | Pydantic models = machine-executable contract; FastAPI generates `docs/openapi.json` from them |
 | **Artifacts** | `docs/openapi.json` | Regenerable output — recreated by `make export-spec`; committed to `docs/` |
 | **Validation** | `tests/` | Each test asserts one behavioral guarantee from §4 or §5; a failing test is a conformance failure |
-| **Runtime** | FastAPI app + `inference/pipeline.py` | Shape is entirely constrained by the layers above |
+| **Runtime** | FastAPI app (`api/http/`) + `pipeline/inference/` | Shape is entirely constrained by the layers above |
 
 **The workflow for any change:**
 
@@ -982,8 +1003,8 @@ and keeping write transactions short.
 
 ### ADR-12 — Atomic artifact directory writes
 
-**Decision:** Write model artifacts to `models/tmp_<run_id>/`, then rename atomically to
-`models/<name>/` on success. On failure, remove the tmp directory.
+**Decision:** Write model artifacts to `artifacts/tmp_<run_id>/`, then rename atomically to
+`artifacts/<name>/` on success. On failure, remove the tmp directory.
 
 **Rationale:**
 - A crash mid-write leaves a partial artifact directory. Loading a partial directory would
@@ -1189,8 +1210,7 @@ One-time cost that pays for itself the first time a schema change is needed.
 ### ADR-23 — `runtime/` as the environment boundary layer
 
 **Decision:** Isolate all host-environment discovery in a dedicated `runtime/` package. All source
-packages (`core/`, `training/`, `inference/`) are environment-agnostic and receive resolved
-configuration as parameters.
+packages inside `pipeline/` are environment-agnostic and receive resolved configuration as parameters.
 
 **What lives in `runtime/`:**
 - `probe.py` — CUDA detection (`torch.cuda.is_available()`), Docker availability (`docker info`),
@@ -1219,14 +1239,81 @@ configuration as parameters.
 - Docker image inventory lets the probe report reuse vs. pull cost upfront
   (e.g., "anomaly-flow:latest reused — saved 3 min pull").
 
-**Rule:** `core/`, `training/`, and `inference/` never call `torch.cuda.is_available()`,
+**Rule:** All modules inside `pipeline/` never call `torch.cuda.is_available()`,
 `subprocess.run(...)`, or read `os.environ` directly. They receive `device: str` and other
-resolved values as parameters from the caller (the API startup sequence or the training job).
+resolved values as parameters from the caller (`pipeline/coordinator.py`, which receives them
+from `api/http/` at startup or from `api/offline/` at the CLI boundary).
 
 **Trade-off:** Probe runs at startup (~0.5 s: Docker info + image list via subprocess). Subprocess
 calls are wrapped in `try/except` — if Docker is absent, `probe_docker()` returns
 `DockerStatus(installed=False)` rather than raising. `HostEnvironment` is cached for the process
 lifetime; `GET /api/preflight` re-runs probes on demand if the environment changes after startup.
+
+---
+
+### ADR-24 — `pipeline/coordinator.py` as the ML pipeline orchestration layer
+
+**Decision:** Introduce a `PipelineCoordinator` class in `pipeline/coordinator.py` that owns the
+sequencing of all ML pipeline stages. Both `api/http/` (HTTP port) and `api/offline/` (CLI port)
+call the coordinator; neither port contains ML orchestration logic.
+
+**Interface:**
+```python
+class PipelineCoordinator:
+    def run_eda(self, dataset_dir: str) -> dict: ...
+    def run_training(self, dataset_dir: str, device: str,
+                     on_progress: Callable[[int, str], None] | None = None) -> ModelVersion: ...
+    def run_fine_tune(self, model_version_id: int, device: str,
+                      on_progress: Callable[[int, str], None] | None = None) -> ModelVersion: ...
+    def run_inference(self, input_path: str, device: str = "cpu") -> InferenceResult: ...
+```
+
+**Rationale:**
+- Without a coordinator, each boundary layer (`api/http/routers/training.py`,
+  `api/offline/train.py`) independently re-implements the same pipeline sequencing:
+  load → preprocess → train_classifier → train_detector → evaluate → save. Duplication
+  means divergence over time.
+- The `on_progress: Callable[[int, str], None] | None` callback is the polymorphic seam:
+  `api/offline/` passes a console logger; `api/http/` passes an SSE event pusher. The
+  coordinator calls `on_progress(pct, message)` at each stage — same signature, different
+  implementations, no conditional logic inside the coordinator.
+- The coordinator is the only module inside `pipeline/` that knows the full stage sequence.
+  Individual modules (`pipeline/training/train_classifier.py`, etc.) know only their own step.
+
+**Boundaries:**
+- Coordinator receives `device: str` (already resolved by the caller — ADR-23) as a parameter
+- Coordinator never reads `os.environ` or calls `torch.cuda.is_available()`
+- Coordinator never imports from `api/http/` — it is a `pipeline/` module
+
+**Trade-off:** Introduces a central orchestration point that could become a bottleneck if
+pipeline stages need to diverge significantly between HTTP and offline paths. In practice the
+stages are identical; the only difference is the progress callback.
+
+---
+
+### ADR-25 — `api/http/` + `api/offline/` as dual boundary ports (hexagonal architecture)
+
+**Decision:** Split the `api/` package into two sub-packages representing the two entry ports
+into the system: `api/http/` (HTTP/REST) and `api/offline/` (CLI, invoked via `make`).
+
+**Rationale:**
+- Hexagonal architecture (ports & adapters): the `pipeline/` core should be callable from any
+  port without modification. Making the two ports explicit directories enforces this boundary
+  structurally — it is not possible to accidentally import `api/http/schemas.py` from an offline
+  script without it being immediately visible in the import path.
+- `api/offline/` entry points are intentionally thin: they parse CLI args, resolve the device
+  from `runtime/`, call `pipeline.coordinator`, and handle output formatting. No ML logic.
+- Both ports use the same `pipeline/inference/adapters/` (csv_adapter, pcap_adapter) since
+  the HTTP multipart upload and the offline CSV path both parse the same file format.
+- Aligns with the A2 assessment description of the system: a service that can be driven either
+  via REST API or directly from the command line without starting a server.
+
+**A1 connection:** A1 implemented both a notebook (offline) and a web demo (HTTP) for the same
+ML pipeline. The dual-port structure makes this split formal and maintainable in V2.
+
+**Trade-off:** `uvicorn api.http.main:app` replaces the previous `uvicorn api.main:app`.
+All `from api.X import Y` imports become `from api.http.X import Y` inside the HTTP layer,
+and `from api.offline.X import Y` for CLI entry points.
 
 ---
 
