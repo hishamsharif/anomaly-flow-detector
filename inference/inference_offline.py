@@ -6,10 +6,10 @@ Loads the active model directly from the artifact database and batch-scores
 a CSV or PCAP file through the full 3-stage pipeline.
 
 Usage:
-  python predict.py --csv path/to/flows.csv
-  python predict.py --pcap path/to/capture.pcap
-  python predict.py --csv flows.csv --output results.csv
-  python predict.py --csv flows.csv --db data/afd.db
+  python inference/inference_offline.py --csv path/to/flows.csv
+  python inference/inference_offline.py --pcap path/to/capture.pcap
+  python inference/inference_offline.py --csv flows.csv --output results.csv
+  python inference/inference_offline.py --csv flows.csv --db data/afd.db
 """
 from __future__ import annotations
 

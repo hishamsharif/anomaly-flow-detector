@@ -1,7 +1,7 @@
 """Offline initial training script — equivalent of POST /api/training/start (initial mode).
 
 Run via:  make train
-Or directly:  PYTHONPATH=. python train_offline.py [--clf xgboost] [--det mlp_ae]
+Or directly:  PYTHONPATH=. python training/train_offline.py [--clf xgboost] [--det mlp_ae]
 
 Creates a ModelVersion row, runs the classifier + AE pipeline, and marks the
 resulting version as active.  Device is resolved from settings (DEVICE env var)

@@ -1,4 +1,4 @@
-.PHONY: help setup resetup start stop logs verify test lint migrate export-spec train clean-models api ui
+.PHONY: help setup resetup start stop logs verify test lint migrate export-spec train infer clean-models api ui
 
 COMPOSE        = docker compose
 DL_ENV         = /home/hhaniffa/miniconda/envs/afd_v2/bin
@@ -38,8 +38,12 @@ help:
 	@echo "    make verify api       Check API /health endpoint"
 	@echo "    make verify ui        Check UI is serving on :5173"
 	@echo ""
+	@echo "  Offline (no server required)"
+	@echo "    make train            Initial training: classifier + AE on CIC-IDS2017"
+	@echo "    make infer CSV=<file> Score a CSV through the full pipeline (no Docker needed)"
+	@echo "                          Optional: OUTPUT=<file>  DB=<path>  (default DB: data/afd.db)"
+	@echo ""
 	@echo "  Development"
-	@echo "    make train            Run initial training offline (classifier + AE on CIC-IDS2017)"
 	@echo "    make test             Run pytest suite"
 	@echo "    make lint             Ruff check + format check"
 	@echo "    make migrate          Apply Alembic migrations"
@@ -255,7 +259,19 @@ train:
 	@echo ""
 	@[ -f data/afd.db ] || touch data/afd.db
 	$(MAKE) migrate
-	PYTHONPATH=. $(DL_ENV)/python train_offline.py
+	PYTHONPATH=. $(DL_ENV)/python training/train_offline.py
+
+# ── Offline inference ──────────────────────────────────────────────────────────
+# Usage: make infer CSV=path/to/flows.csv [OUTPUT=results.csv] [DB=data/afd.db]
+infer:
+	@if [ -z "$(CSV)" ]; then \
+		echo "Usage: make infer CSV=<file>  [OUTPUT=<file>]  [DB=data/afd.db]"; \
+		exit 1; \
+	fi
+	PYTHONPATH=. $(DL_ENV)/python inference/inference_offline.py \
+		--csv "$(CSV)" \
+		$(if $(OUTPUT),--output "$(OUTPUT)") \
+		$(if $(DB),--db "$(DB)")
 
 # ── Cleanup ────────────────────────────────────────────────────────────────────
 clean-models:

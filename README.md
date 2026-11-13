@@ -134,9 +134,17 @@ Development
 6. Once K=50 is reached → **Retrain AE** button unlocks → trigger AE fine-tune
 7. Navigate to **Dataset** → EDA charts for CIC-IDS2017 class distribution and feature correlations
 
-Standalone CLI:
+Offline CLI (no server required):
 ```bash
-conda run -n afd_v2 python predict.py data/sample.csv
+# Initial training
+make train
+
+# Score a CSV
+make infer CSV=data/sample.csv OUTPUT=results.csv
+
+# Or invoke directly
+PYTHONPATH=. python inference/inference_offline.py --csv data/sample.csv
+PYTHONPATH=. python inference/inference_offline.py --pcap data/capture.pcap --output results.csv
 ```
 
 ---

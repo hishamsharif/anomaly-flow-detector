@@ -69,7 +69,8 @@ recorded). Stage 3 only determines the final verdict when Stage 2 did not fire.
 | `api/` | FastAPI app — routers, schemas, jobs bridge, DB models |
 | `api/jobs.py` | `ThreadPoolExecutor` + append-only SSE event log — training + predict background jobs |
 | `runtime/` | Host environment probes — CUDA, Docker, image inventory; resolved once at startup |
-| `predict.py` | Standalone CLI examiner — loads active model from SQLite, scores CSV/PCAP without HTTP overhead |
+| `training/train_offline.py` | Offline initial training entry point — trains classifier + AE on CIC-IDS2017, no server required (`make train`) |
+| `inference/inference_offline.py` | Standalone CLI examiner — loads active model from SQLite, scores CSV/PCAP without HTTP overhead |
 
 ---
 

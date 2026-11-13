@@ -608,7 +608,7 @@ anomaly-flow-detector/
 │       ├── health.py
 │       ├── models.py
 │       ├── training.py
-│       ├── predict.py
+│       ├── inference.py
 │       └── alerts.py
 ├── core/
 │   ├── base.py                     ← BaseClassifier + BaseAnomalyDetector protocols
@@ -622,6 +622,7 @@ anomaly-flow-detector/
 │       ├── mlp_ae.py
 │       └── isolation_forest.py
 ├── training/
+│   ├── train_offline.py            ← offline initial training entry point (`make train`)
 │   ├── pipelines/
 │   │   ├── initial.py              ← CIC-IDS2017 → artifacts; no api.config import
 │   │   └── fine_tune.py            ← AE-only retrain; no api.config import
@@ -633,6 +634,7 @@ anomaly-flow-detector/
 │   └── data_loader.py              ← DuckDB CSV scan (CIC-IDS2017 loading only)
 ├── inference/
 │   ├── pipeline.py                 ← 3-stage runner: rules → classifier → detector → consensus
+│   ├── inference_offline.py        ← standalone CLI examiner (no server required; `python inference/inference_offline.py --csv ...`)
 │   └── adapters/
 │       ├── csv_adapter.py          ← CSV → feature DataFrame (handles CIC-IDS2017 column names)
 │       └── pcap_adapter.py         ← PCAP → NFStream flow extraction → feature DataFrame
@@ -648,7 +650,7 @@ anomaly-flow-detector/
 │   ├── test_health.py
 │   ├── test_models.py
 │   ├── test_training.py
-│   ├── test_predict.py
+│   ├── test_inference_offline.py
 │   └── test_alerts.py
 ├── ui/
 │   ├── src/
@@ -664,7 +666,6 @@ anomaly-flow-detector/
 │   │   └── main.tsx
 │   ├── package.json
 │   └── vite.config.ts
-├── predict.py                      ← standalone examiner entry point (no server required)
 ├── docs/
 │   ├── openapi.json                ← exported from FastAPI (`make export-spec`)
 │   └── architecture.md            ← human-readable architecture doc
@@ -704,7 +705,7 @@ This section documents what was learned from V1 (`dev/anomaly-net-flow/`) and dr
 | Docker Compose 2-service (api + ui/nginx) | Single-command setup; worked reliably |
 | Day-based temporal split (Mon–Thu / Fri-AM / Fri-PM) | Scientifically correct for temporal data; novel-attack test set by design |
 | HITL feedback loop (analyst verdicts → threshold → retrain) | Core differentiator; K=50 threshold + encoder freeze + replay buffer worked |
-| `predict.py` standalone examiner entry point | 28k flows/s on GPU; no server required for demos |
+| `inference/inference_offline.py` standalone examiner entry point | 28k flows/s on GPU; no server required for demos |
 | `core/` with zero HTTP dependency | Kept ML code portable and testable; V2 strengthens this to zero HTTP, DB, and file-system dependencies |
 | `DuckDB` for CSV loading | 10× faster than pandas for 2.8M row scan |
 
