@@ -9,7 +9,7 @@ import TrainingPage from './pages/TrainingPage'
 
 type ConnStatus = 'connecting' | 'connected' | 'error'
 
-const TABS = ['dashboard', 'training', 'inference', 'dataset', 'about'] as const
+const TABS = ['dashboard', 'dataset', 'training', 'inference', 'about'] as const
 
 export default function App() {
   const [connStatus, setConnStatus] = useState<ConnStatus>('connecting')
