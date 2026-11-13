@@ -64,6 +64,8 @@ const SNAP_CORR_MATRIX: number[][] = [
   [-0.186,-0.172,-0.155,-0.194,-0.209,-0.203,-0.151,-0.125,-0.124,-0.243,-0.239,-0.229,-0.192,-0.242,-0.250,-0.179,-0.169,-0.236,-0.078,1.000],
 ]
 
+const BENIGN_SAMPLE_N = 5_000
+
 // ── Shared attack palette (stable order by index) ─────────────────────────────
 const ATTACK_PALETTE = [
   '#4361ee', '#7209b7', '#f72585', '#b5179e', '#560bad', '#480ca8', '#3a0ca3',
@@ -601,7 +603,7 @@ export default function DatasetPage() {
   const totalFlows   = data.totalFlows
   const benignCount  = data.classCounts[0] ?? 0
   const attackClasses = data.classLabels.filter(l => l !== 'BENIGN').length
-  const rawFeatures  = data.featureCounts?.raw ?? 79
+  const rawFeatures  = data.featureCounts?.raw ?? 78
   const benignPct    = totalFlows > 0 ? (benignCount / totalFlows * 100).toFixed(1) : '—'
 
   const fmtFlows = (n: number) =>
@@ -754,5 +756,3 @@ export default function DatasetPage() {
     </div>
   )
 }
-
-const BENIGN_SAMPLE_N = 5_000
