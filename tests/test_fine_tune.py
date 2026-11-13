@@ -13,8 +13,7 @@ from httpx import AsyncClient
 from db.models import Alert, ModelVersion
 
 
-pytestmark = pytest.mark.asyncio
-
+# asyncio_mode = "auto" in pyproject.toml handles async tests; no module-level mark needed.
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
