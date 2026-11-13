@@ -1,4 +1,4 @@
-.PHONY: help setup resetup start stop logs verify test lint migrate export-spec clean-models api ui
+.PHONY: help setup resetup start stop logs verify test lint migrate export-spec train clean-models api ui
 
 COMPOSE        = docker compose
 DL_ENV         = /home/hhaniffa/miniconda/envs/afd_v2/bin
@@ -39,6 +39,7 @@ help:
 	@echo "    make verify ui        Check UI is serving on :5173"
 	@echo ""
 	@echo "  Development"
+	@echo "    make train            Run initial training offline (classifier + AE on CIC-IDS2017)"
 	@echo "    make test             Run pytest suite"
 	@echo "    make lint             Ruff check + format check"
 	@echo "    make migrate          Apply Alembic migrations"
@@ -239,6 +240,22 @@ migrate:
 export-spec:
 	PYTHONPATH=. $(DL_ENV)/python -c \
 		"import json; from api.main import app; open('docs/openapi.json','w').write(json.dumps(app.openapi(), indent=2))"
+
+# ── Offline initial training ───────────────────────────────────────────────────
+train:
+	@echo ""
+	@echo "==> AFD V2 — initial training (classifier + AE)"
+	@CSV_COUNT=$$(find -L data/CIC-IDS2017 -maxdepth 1 -name "*.csv" 2>/dev/null | wc -l); \
+	if [ "$$CSV_COUNT" -eq 0 ]; then \
+		echo "  ERROR: No CSV files found in data/CIC-IDS2017/"; \
+		echo "  Run 'make setup' first, or set CIC_IDS2017_DIR in .env."; \
+		exit 1; \
+	fi; \
+	echo "  Dataset: $$CSV_COUNT CSV files found"
+	@echo ""
+	@[ -f data/afd.db ] || touch data/afd.db
+	$(MAKE) migrate
+	PYTHONPATH=. $(DL_ENV)/python scripts/train_offline.py
 
 # ── Cleanup ────────────────────────────────────────────────────────────────────
 clean-models:

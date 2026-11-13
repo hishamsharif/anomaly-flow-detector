@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  getAvailableTypes,
+  getActiveModel,
+  getDashboardSummary,
   getModels,
   promoteModel,
   startTraining,
   subscribeToTraining,
-  type AvailableTypesResponse,
+  type DashboardSummary,
   type ModelVersionResponse,
 } from '../api/client'
 
@@ -17,32 +18,30 @@ const STATUS_BADGE: Record<string, string> = {
 }
 
 export default function TrainingPage() {
-  const [types, setTypes] = useState<AvailableTypesResponse | null>(null)
   const [models, setModels] = useState<ModelVersionResponse[]>([])
-  const [classifier, setClassifier] = useState('')
-  const [detector, setDetector] = useState('')
+  const [activeModel, setActiveModel] = useState<ModelVersionResponse | null>(null)
+  const [summary, setSummary] = useState<DashboardSummary | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [promotingId, setPromotingId] = useState<number | null>(null)
 
-  // Training state
-  const [training, setTraining] = useState(false)
+  // HITL fine-tune state
+  const [retraining, setRetraining] = useState(false)
   const [pct, setPct] = useState(0)
   const [logs, setLogs] = useState<string[]>([])
+  const [retrainMsg, setRetrainMsg] = useState<{ text: string; ok: boolean } | null>(null)
   const esRef = useRef<EventSource | null>(null)
   const logsEndRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    getAvailableTypes()
-      .then(data => {
-        setTypes(data)
-        if (data.classifiers.length) setClassifier(data.classifiers[0].id)
-        if (data.detectors.length) setDetector(data.detectors[0].id)
-      })
-      .catch(() => setError('Failed to load model types'))
+  const load = () => {
+    getModels().then(data => setModels(data.items)).catch(() => {})
+    getActiveModel().then(setActiveModel).catch(() => {})
+    getDashboardSummary().then(setSummary).catch(() => {})
+  }
 
-    getModels()
-      .then(data => setModels(data.items))
-      .catch(() => setError('Failed to load model history'))
+  useEffect(() => {
+    load()
+    const id = setInterval(load, 30_000)
+    return () => clearInterval(id)
   }, [])
 
   useEffect(() => {
@@ -50,9 +49,7 @@ export default function TrainingPage() {
   }, [logs])
 
   const refreshModels = () =>
-    getModels()
-      .then(data => setModels(data.items))
-      .catch(() => {})
+    getModels().then(data => setModels(data.items)).catch(() => {})
 
   const handlePromote = async (id: number) => {
     setPromotingId(id)
@@ -67,121 +64,148 @@ export default function TrainingPage() {
     }
   }
 
-  const handleStart = async () => {
+  const handleRetrain = async () => {
+    setRetrainMsg(null)
     setError(null)
-    setTraining(true)
+    setRetraining(true)
     setPct(0)
     setLogs([])
-
     try {
-      const { run_id } = await startTraining({ classifier_type: classifier, detector_type: detector })
+      const { run_id } = await startTraining({
+        classifier_type: activeModel?.classifier_type ?? 'xgboost',
+        detector_type:   activeModel?.detector_type   ?? 'mlp_ae',
+        mode: 'ae_retrain',
+      })
       const es = subscribeToTraining(run_id)
       esRef.current = es
 
-      es.addEventListener('progress', e => {
-        setLogs(prev => [...prev, e.data])
-      })
-      es.addEventListener('step', e => {
-        setPct(parseInt(e.data, 10))
-      })
+      es.addEventListener('progress', e => setLogs(prev => [...prev, e.data]))
+      es.addEventListener('step', e => setPct(parseInt(e.data, 10)))
       es.addEventListener('done', e => {
         setLogs(prev => [...prev, `✓ ${e.data}`])
         setPct(100)
         es.close()
         esRef.current = null
-        setTraining(false)
-        refreshModels()
+        setRetraining(false)
+        setRetrainMsg({ text: 'AE fine-tune complete — new model version active.', ok: true })
+        load()
       })
       es.addEventListener('error', e => {
-        const msg = (e as MessageEvent).data ?? 'Training failed'
+        const msg = (e as MessageEvent).data ?? 'Fine-tune failed'
         setError(msg)
         setLogs(prev => [...prev, `✗ ${msg}`])
         es.close()
         esRef.current = null
-        setTraining(false)
+        setRetraining(false)
       })
     } catch (e: any) {
-      setError(e.message ?? 'Failed to start training')
-      setTraining(false)
+      setError(e.message ?? 'Failed to start fine-tune')
+      setRetraining(false)
     }
   }
 
+  const verdictEligible  = summary?.verdict_eligible ?? 0
+  const verdictThreshold = summary?.verdict_threshold ?? 50
+  const retrainUnlocked  = summary?.retrain_unlocked ?? false
+  const progressPct      = Math.min(100, Math.round((verdictEligible / verdictThreshold) * 100))
+
   return (
-    <div className="w-full max-w-4xl mx-auto">
-      <h2 className="text-lg font-semibold text-white mb-6">Training</h2>
+    <div className="w-full max-w-4xl mx-auto space-y-6">
+      <h2 className="text-lg font-semibold text-white">Training</h2>
 
       {error && (
-        <div className="mb-4 text-sm text-red-400 bg-red-900/30 border border-red-800 rounded px-3 py-2">
+        <div className="text-sm text-red-400 bg-red-900/30 border border-red-800 rounded px-3 py-2">
           {error}
         </div>
       )}
 
-      {/* Controls */}
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-5 mb-6">
-        <div className="flex flex-wrap gap-4 items-end">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-400">Classifier</label>
-            <select
-              value={classifier}
-              onChange={e => setClassifier(e.target.value)}
-              disabled={training}
-              className="bg-gray-800 border border-gray-700 text-white text-sm rounded px-3 py-2 min-w-[200px] disabled:opacity-50"
-            >
-              {types?.classifiers.map(c => (
-                <option key={c.id} value={c.id}>{c.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-400">Detector</label>
-            <select
-              value={detector}
-              onChange={e => setDetector(e.target.value)}
-              disabled={training}
-              className="bg-gray-800 border border-gray-700 text-white text-sm rounded px-3 py-2 min-w-[200px] disabled:opacity-50"
-            >
-              {types?.detectors.map(d => (
-                <option key={d.id} value={d.id}>{d.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <button
-            onClick={handleStart}
-            disabled={training || !classifier || !detector}
-            className="px-4 py-2 rounded text-sm font-medium bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {training ? 'Training…' : 'Start Training'}
-          </button>
+      {/* Offline training info banner */}
+      <div className="bg-blue-900/15 border border-blue-800/50 rounded-lg p-4 flex gap-3">
+        <span className="text-blue-400 text-lg leading-none mt-0.5">ℹ</span>
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-blue-300">Initial training runs offline</p>
+          <p className="text-xs text-gray-400 leading-relaxed">
+            The classifier and autoencoder are trained on CIC-IDS2017 outside the UI to avoid
+            long-running HTTP requests. Run <code className="text-gray-200 bg-gray-800 px-1 rounded">make train</code> on
+            the host (requires the dataset in <code className="text-gray-200 bg-gray-800 px-1 rounded">data/CIC-IDS2017/</code>).
+            Once training completes, the model appears in the history table below and the
+            HITL fine-tune section unlocks.
+          </p>
         </div>
+      </div>
 
-        {/* Progress bar */}
-        {training && (
-          <div className="mt-4">
-            <div className="flex justify-between text-xs text-gray-400 mb-1">
-              <span>Progress</span>
-              <span>{pct}%</span>
+      {/* HITL fine-tune — only shown when an active model exists */}
+      {activeModel ? (
+        <div className="bg-gray-900 border border-gray-800 rounded-lg p-5 space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-sm font-semibold text-white">AE Fine-tune (HITL)</h3>
+              <p className="text-xs text-gray-400 mt-1">
+                Fine-tunes the <span className="text-gray-200">MLP Autoencoder only</span> on
+                analyst-confirmed benign flows. Classifier weights stay frozen.
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Active model: <span className="text-gray-300 font-mono">{activeModel.name}</span>
+              </p>
+            </div>
+            <button
+              onClick={handleRetrain}
+              disabled={!retrainUnlocked || retraining}
+              className="shrink-0 px-4 py-2 rounded text-sm font-medium bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {retraining ? 'Fine-tuning…' : 'Retrain AE'}
+            </button>
+          </div>
+
+          {/* Verdict progress */}
+          <div>
+            <div className="flex justify-between text-xs text-gray-400 mb-1.5">
+              <span>Analyst verdicts collected</span>
+              <span>{verdictEligible} / {verdictThreshold}</span>
             </div>
             <div className="w-full bg-gray-800 rounded-full h-2">
               <div
-                className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${pct}%` }}
+                className={`h-2 rounded-full transition-all duration-500 ${retrainUnlocked ? 'bg-green-500' : 'bg-blue-500'}`}
+                style={{ width: `${progressPct}%` }}
               />
             </div>
+            {retrainUnlocked
+              ? <p className="text-xs text-green-400 mt-1.5">Threshold reached — fine-tune unlocked</p>
+              : <p className="text-xs text-gray-600 mt-1.5">Submit verdicts on alerts in the Inference tab to unlock</p>
+            }
           </div>
-        )}
 
-        {/* Log lines */}
-        {logs.length > 0 && (
-          <div className="mt-3 bg-gray-950 border border-gray-800 rounded p-3 max-h-40 overflow-y-auto font-mono text-xs text-gray-300 space-y-0.5">
-            {logs.map((line, i) => <div key={i}>{line}</div>)}
-            <div ref={logsEndRef} />
-          </div>
-        )}
-      </div>
+          {/* SSE progress + log */}
+          {retraining && (
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs text-gray-400 mb-1">
+                <span>Fine-tune progress</span><span>{pct}%</span>
+              </div>
+              <div className="w-full bg-gray-800 rounded-full h-1.5">
+                <div className="bg-blue-500 h-1.5 rounded-full transition-all duration-300" style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+          )}
+          {logs.length > 0 && (
+            <div className="bg-gray-950 border border-gray-800 rounded p-3 max-h-36 overflow-y-auto font-mono text-xs text-gray-300 space-y-0.5">
+              {logs.map((line, i) => <div key={i}>{line}</div>)}
+              <div ref={logsEndRef} />
+            </div>
+          )}
+          {retrainMsg && (
+            <p className={`text-xs ${retrainMsg.ok ? 'text-green-400' : 'text-red-400'}`}>
+              {retrainMsg.text}
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="bg-gray-900 border border-gray-800 rounded-lg p-5">
+          <h3 className="text-sm font-semibold text-white mb-1">AE Fine-tune (HITL)</h3>
+          <p className="text-sm text-gray-500">No active model — run initial training offline first.</p>
+        </div>
+      )}
 
-      {/* Version history */}
+      {/* Model version history */}
       <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-800">
           <h3 className="text-sm font-medium text-gray-300">Model Version History</h3>
@@ -191,22 +215,16 @@ export default function TrainingPage() {
             <tr className="text-xs text-gray-500 border-b border-gray-800">
               <th className="text-left px-5 py-3">Name</th>
               <th className="text-left px-4 py-3">Status</th>
-              <th
-                className="text-left px-4 py-3 cursor-help"
-                title="F1-score — harmonic mean of Precision and Recall. Range 0–1; higher is better."
-              >
+              <th className="text-left px-4 py-3 cursor-help"
+                title="F1-score — harmonic mean of Precision and Recall. Range 0–1; higher is better.">
                 F1 <span className="text-gray-700">ⓘ</span>
               </th>
-              <th
-                className="text-left px-4 py-3 cursor-help"
-                title="False Alarm Rate (FAR) — fraction of benign flows incorrectly flagged as attacks. Lower is better."
-              >
+              <th className="text-left px-4 py-3 cursor-help"
+                title="False Alarm Rate (FAR) — fraction of benign flows incorrectly flagged as attacks. Lower is better.">
                 FAR <span className="text-gray-700">ⓘ</span>
               </th>
-              <th
-                className="text-left px-4 py-3 cursor-help"
-                title="Attack Miss Rate (AMR) — fraction of true attack flows that escaped detection. Lower is better. 1.000 = AE threshold not yet calibrated."
-              >
+              <th className="text-left px-4 py-3 cursor-help"
+                title="Attack Miss Rate (AMR) — fraction of true attack flows that escaped detection. Lower is better. 1.000 = AE threshold not yet calibrated.">
                 Miss Rate ↓ <span className="text-gray-700">ⓘ</span>
               </th>
               <th className="text-left px-4 py-3">Created</th>
@@ -217,7 +235,7 @@ export default function TrainingPage() {
             {models.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-5 py-6 text-center text-gray-500 text-sm">
-                  No versions yet — start training to create the first one.
+                  No versions yet — run <code className="text-gray-400">make train</code> to create the first one.
                 </td>
               </tr>
             ) : (
@@ -229,32 +247,23 @@ export default function TrainingPage() {
                       {m.status}
                     </span>
                   </td>
-                  <td
-                    className="px-4 py-3 text-gray-300 cursor-help"
-                    title={m.metrics?.f1 != null ? `F1-score: ${m.metrics.f1.toFixed(6)} — harmonic mean of Precision and Recall` : undefined}
-                  >
+                  <td className="px-4 py-3 text-gray-300 cursor-help"
+                    title={m.metrics?.f1 != null ? `F1-score: ${m.metrics.f1.toFixed(6)} — harmonic mean of Precision and Recall` : undefined}>
                     {m.metrics?.f1?.toFixed(3) ?? '—'}
                   </td>
-                  <td
-                    className="px-4 py-3 text-gray-300 cursor-help"
-                    title={m.metrics?.far != null ? `False Alarm Rate: ${m.metrics.far.toFixed(6)} (${(m.metrics.far * 100).toFixed(4)}% of benign flows falsely flagged)` : undefined}
-                  >
+                  <td className="px-4 py-3 text-gray-300 cursor-help"
+                    title={m.metrics?.far != null ? `False Alarm Rate: ${m.metrics.far.toFixed(6)} (${(m.metrics.far * 100).toFixed(4)}% of benign flows falsely flagged)` : undefined}>
                     {m.metrics?.far?.toFixed(5) ?? '—'}
                   </td>
-                  <td
-                    className="px-4 py-3 text-gray-300 cursor-help"
-                    title={m.metrics?.amr != null ? `Attack Miss Rate: ${m.metrics.amr.toFixed(6)} — ${(m.metrics.amr * 100).toFixed(1)}% of attacks escaped detection${m.metrics.amr >= 1.0 ? ' (AE threshold likely uncalibrated)' : ''}` : undefined}
-                  >
+                  <td className="px-4 py-3 text-gray-300 cursor-help"
+                    title={m.metrics?.amr != null ? `Attack Miss Rate: ${m.metrics.amr.toFixed(6)} — ${(m.metrics.amr * 100).toFixed(1)}% of attacks escaped detection${m.metrics.amr >= 1.0 ? ' (AE threshold likely uncalibrated)' : ''}` : undefined}>
                     {m.metrics?.amr?.toFixed(3) ?? '—'}
                   </td>
                   <td className="px-4 py-3 text-gray-400">{new Date(m.created_at).toLocaleDateString()}</td>
                   <td className="px-4 py-3">
                     {m.status === 'archived' && (
-                      <button
-                        onClick={() => handlePromote(m.id)}
-                        disabled={promotingId === m.id}
-                        className="text-xs text-blue-400 hover:text-blue-300 disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
+                      <button onClick={() => handlePromote(m.id)} disabled={promotingId === m.id}
+                        className="text-xs text-blue-400 hover:text-blue-300 disabled:opacity-40 disabled:cursor-not-allowed">
                         {promotingId === m.id ? '…' : 'Promote'}
                       </button>
                     )}

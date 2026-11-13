@@ -9,6 +9,10 @@ services:
       - "8000:8000"
     volumes:
       - ./data:/app/data
+      # Mount the dataset directory directly (bypasses symlinks).
+      # Set CIC_IDS2017_DIR in .env to point at the host archive copy.
+      # Default falls back to ./data/CIC-IDS2017 for the bundled/downloaded copy.
+      - ${CIC_IDS2017_DIR:-./data/CIC-IDS2017}:/app/data/CIC-IDS2017:ro
       - ./models:/app/models
       - ./logs:/app/logs
     env_file:
