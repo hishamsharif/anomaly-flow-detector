@@ -255,7 +255,7 @@ train:
 	@echo ""
 	@[ -f data/afd.db ] || touch data/afd.db
 	$(MAKE) migrate
-	PYTHONPATH=. $(DL_ENV)/python scripts/train_offline.py
+	PYTHONPATH=. $(DL_ENV)/python train_offline.py
 
 # ── Cleanup ────────────────────────────────────────────────────────────────────
 clean-models:
