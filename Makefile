@@ -49,7 +49,7 @@ help:
 	@echo "    make lint             Ruff check + format check"
 	@echo "    make migrate          Apply Alembic migrations"
 	@echo "    make export-spec      Write docs/openapi.json"
-	@echo "    make clean-models     Delete versioned model dirs under models/"
+	@echo "    make clean-models     Delete versioned model dirs under artifacts/"
 	@echo ""
 
 # ── Setup (run once) ──────────────────────────────────────────────────────────
@@ -103,7 +103,7 @@ resetup:
 	@echo "  WARNING: resetup will permanently delete:"
 	@echo "    • afd_v2 conda env  (all Python packages)"
 	@echo "    • afd.db            (all alerts, verdicts, model history)"
-	@echo "    • models/           (all trained model artifacts)"
+	@echo "    • artifacts/        (all trained model artifacts)"
 	@echo "    • logs/             (all log files)"
 	@echo ""
 	@printf "  Proceed? This cannot be undone. [y/N] "; \
@@ -135,7 +135,7 @@ start:
 		lsof -ti:8000 2>/dev/null | xargs -r kill -9 2>/dev/null; true; \
 		mkdir -p logs; \
 		PYTHONPATH=. $(DL_ENV)/alembic upgrade head && \
-		PYTHONPATH=. $(DL_ENV)/uvicorn api.main:app --reload --host 0.0.0.0 --port 8000 \
+		PYTHONPATH=. $(DL_ENV)/uvicorn api.http.main:app --reload --host 0.0.0.0 --port 8000 \
 			2>&1 | tee logs/api.log; \
 	elif [ "$(_COMP)" = "ui" ]; then \
 		lsof -ti:5173 2>/dev/null | xargs -r kill -9 2>/dev/null; true; \
@@ -244,7 +244,7 @@ migrate:
 # ── Spec ───────────────────────────────────────────────────────────────────────
 export-spec:
 	PYTHONPATH=. $(DL_ENV)/python -c \
-		"import json; from api.main import app; open('docs/openapi.json','w').write(json.dumps(app.openapi(), indent=2))"
+		"import json; from api.http.main import app; open('docs/openapi.json','w').write(json.dumps(app.openapi(), indent=2))"
 
 # ── EDA + preprocessing report ─────────────────────────────────────────────────
 eda:
@@ -258,7 +258,7 @@ eda:
 	fi; \
 	echo "  Dataset: $$CSV_COUNT CSV files found"
 	@echo ""
-	PYTHONPATH=. $(DL_ENV)/python eda/eda_offline.py
+	PYTHONPATH=. $(DL_ENV)/python api/offline/eda.py
 
 # ── Offline initial training ───────────────────────────────────────────────────
 train:
@@ -274,7 +274,7 @@ train:
 	@echo ""
 	@[ -f data/afd.db ] || touch data/afd.db
 	$(MAKE) migrate
-	PYTHONPATH=. $(DL_ENV)/python training/train_offline.py
+	PYTHONPATH=. $(DL_ENV)/python api/offline/train.py
 
 # ── Offline inference ──────────────────────────────────────────────────────────
 # Usage: make infer CSV=path/to/flows.csv [OUTPUT=results.csv] [DB=data/afd.db]
@@ -283,12 +283,12 @@ infer:
 		echo "Usage: make infer CSV=<file>  [OUTPUT=<file>]  [DB=data/afd.db]"; \
 		exit 1; \
 	fi
-	PYTHONPATH=. $(DL_ENV)/python inference/inference_offline.py \
+	PYTHONPATH=. $(DL_ENV)/python api/offline/infer.py \
 		--csv "$(CSV)" \
 		$(if $(OUTPUT),--output "$(OUTPUT)") \
 		$(if $(DB),--db "$(DB)")
 
 # ── Cleanup ────────────────────────────────────────────────────────────────────
 clean-models:
-	@find models/ -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} + 2>/dev/null || true
-	@echo "models/ cleared."
+	@find artifacts/ -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} + 2>/dev/null || true
+	@echo "artifacts/ cleared."

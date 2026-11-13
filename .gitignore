@@ -13,7 +13,7 @@ data/CIC-IDS2017/*.csv
 data/*.db
 
 # Model artifacts (keep .gitkeep; pin specific versions as needed)
-models/*/
+artifacts/*/
 
 # UI
 ui/node_modules/

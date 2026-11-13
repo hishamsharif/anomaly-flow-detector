@@ -15,7 +15,7 @@ class Settings(BaseSettings):
 
     # Paths
     bundled_dataset_dir: str = "data/CIC-IDS2017"
-    model_artifact_dir: str = "models"
+    model_artifact_dir: str = "artifacts"
 
     # AE fine-tune
     fine_tune_k_threshold: int = 50
