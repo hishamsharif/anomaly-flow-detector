@@ -13,14 +13,18 @@ from pipeline.models.base import PreprocessingSpec
 class _AE(nn.Module):
     def __init__(self, n_features: int) -> None:
         super().__init__()
+        # LeakyReLU(0.1) in the encoder preserves gradient for negative-valued inputs.
+        # StandardScaler output has many negative values; ReLU would zero them out,
+        # causing the AE to reconstruct benign flows poorly (high MSE) while trivially
+        # reconstructing near-zero DDoS flows (low MSE) — inverting the anomaly signal.
         self.encoder = nn.Sequential(
-            nn.Linear(n_features, 256), nn.ReLU(),
-            nn.Linear(256, 128), nn.ReLU(),
-            nn.Linear(128, 64), nn.ReLU(),
+            nn.Linear(n_features, 256), nn.LeakyReLU(0.1),
+            nn.Linear(256, 128), nn.LeakyReLU(0.1),
+            nn.Linear(128, 64), nn.LeakyReLU(0.1),
         )
         self.decoder = nn.Sequential(
-            nn.Linear(64, 128), nn.ReLU(),
-            nn.Linear(128, 256), nn.ReLU(),
+            nn.Linear(64, 128), nn.LeakyReLU(0.1),
+            nn.Linear(128, 256), nn.LeakyReLU(0.1),
             nn.Linear(256, n_features),
         )
 
@@ -35,7 +39,7 @@ class MLPAutoencoder:
     def __init__(
         self,
         device: str = "cpu",
-        epochs: int = 20,
+        epochs: int = 50,
         batch_size: int = 512,
         lr: float = 1e-3,
     ) -> None:
