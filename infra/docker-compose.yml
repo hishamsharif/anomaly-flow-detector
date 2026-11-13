@@ -1,7 +1,7 @@
 services:
   api:
     build:
-      context: .
+      context: ..
       dockerfile: infra/Dockerfile.api
       args:
         TORCH_BUILD_TYPE: ${TORCH_BUILD_TYPE:-cpu}
@@ -29,7 +29,7 @@ services:
 
   ui:
     build:
-      context: .
+      context: ..
       dockerfile: infra/Dockerfile.ui
     ports:
       - "5173:5173"

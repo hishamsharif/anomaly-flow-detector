@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 from sklearn.feature_selection import VarianceThreshold as _VT
 
@@ -12,7 +14,11 @@ class VarianceFilter:
 
     def fit(self, X: np.ndarray) -> "VarianceFilter":
         self._selector = _VT(threshold=self._threshold)
-        self._selector.fit(X)
+        # sklearn calls np.nanvar which emits RuntimeWarning on all-NaN columns;
+        # those columns are correctly dropped, so the warning is benign.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            self._selector.fit(X)
         self._mask = self._selector.get_support()
         return self
 
