@@ -22,6 +22,7 @@ class ArtifactBundle:
     selector_mask: np.ndarray
     ae_threshold: float
     novel_critical_threshold: float
+    ae_outlier_clip_sigma: float = 5.0
 
 
 class ModelStore:
@@ -90,6 +91,7 @@ class ModelStore:
         selector_mask = np.load(str(p / "selector_mask.npy"))
         ae_threshold = float(meta.get("ae_threshold", ae.threshold))
         novel_critical_threshold = float(meta.get("novel_critical_threshold", ae_threshold * 0.95))
+        ae_outlier_clip_sigma = float(meta.get("ae_outlier_clip_sigma", 5.0))
 
         bundle = ArtifactBundle(
             clf=clf,
@@ -102,6 +104,7 @@ class ModelStore:
             selector_mask=selector_mask,
             ae_threshold=ae_threshold,
             novel_critical_threshold=novel_critical_threshold,
+            ae_outlier_clip_sigma=ae_outlier_clip_sigma,
         )
         self.__class__._active = bundle
         return bundle

@@ -139,7 +139,8 @@ def run_batch_inference(
     importances = bundle.clf.feature_importances  # shape (n_features,)
 
     # ── Stage 3: MLP-AE anomaly detector ──────────────────────────────────────
-    X_det = bundle.detector_scaler.transform(X_raw)
+    _clip = bundle.ae_outlier_clip_sigma
+    X_det = np.clip(bundle.detector_scaler.transform(X_raw), -_clip, _clip)
     ae_scores = bundle.ae.score(X_det)                        # (n_ambiguous,)
     ae_per_feature = bundle.ae.score_per_feature(X_det)       # (n_ambiguous, n_features)
 

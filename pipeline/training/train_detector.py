@@ -15,7 +15,7 @@ from pipeline.preprocessing.feature_engineering import FeatureEngResult
 
 
 def _apply_saved_transforms(df, bundle) -> tuple[np.ndarray, np.ndarray]:
-    """Apply saved masks + detector_scaler to raw DataFrame. Returns (X_scaled, y)."""
+    """Apply saved masks + detector_scaler + outlier clip to raw DataFrame. Returns (X_scaled, y)."""
     feature_cols = [c for c in df.columns if c != "label"]
     X_raw = df[feature_cols].values.astype(np.float32)
     y = df["label"].values
@@ -26,10 +26,12 @@ def _apply_saved_transforms(df, bundle) -> tuple[np.ndarray, np.ndarray]:
             f"bundle variance_mask expects {bundle.variance_mask.shape[0]}"
         )
 
+    import numpy as _np
     X_v = X_raw[:, bundle.variance_mask]
     X_vc = X_v[:, bundle.corr_mask]
     X_vcs = X_vc[:, bundle.selector_mask]
-    return bundle.detector_scaler.transform(X_vcs), y
+    clip = bundle.ae_outlier_clip_sigma
+    return _np.clip(bundle.detector_scaler.transform(X_vcs), -clip, clip), y
 
 
 def run_ae_fine_tune(
@@ -82,7 +84,7 @@ def run_ae_fine_tune(
                     [[flow.get(name, 0.0) for name in bundle.feature_names] for flow in analyst_flows],
                     dtype=np.float32,
                 )
-                X_analyst_scaled = bundle.detector_scaler.transform(X_analyst_raw)
+                X_analyst_scaled = np.clip(bundle.detector_scaler.transform(X_analyst_raw), -bundle.ae_outlier_clip_sigma, bundle.ae_outlier_clip_sigma)
                 X_replay = np.vstack([X_replay, X_analyst_scaled])
                 emit("progress", f"  HITL: added {len(X_analyst_scaled)} analyst-confirmed benign flows to replay buffer.")
             except Exception as exc:
@@ -133,6 +135,7 @@ def run_ae_fine_tune(
             "fine_tune_from": prev_artifact_path,
             "ae_threshold": round(detector.threshold, 6),
             "novel_critical_threshold": round(novel_critical_threshold, 6),
+            "ae_outlier_clip_sigma": bundle.ae_outlier_clip_sigma,
             "ae_far": round(ae_far, 6),
             "ae_amr": round(ae_amr, 6),
             "replay_buffer_size": int(len(X_replay)),

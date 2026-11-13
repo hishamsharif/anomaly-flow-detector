@@ -104,6 +104,7 @@ def run_initial_training(
             "n_features_final": len(feat_result.feature_names),
             "ae_threshold": round(detector.threshold, 6),
             "novel_critical_threshold": round(novel_critical_threshold, 6),
+            "ae_outlier_clip_sigma": settings.ae_outlier_clip_sigma,
             "training_duration_s": round(time.time() - training_start_time, 1),
             "train_rows": len(y_train),
             "val_rows": len(y_val),

@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     far_gate_max: float = 0.05
     recall_gate_max: float = 0.05
 
+    # AE detector — outlier clipping in scaled space (applied after det_scaler.transform)
+    # CIC-IDS2017 has features with extreme outliers (e.g. Flow Bytes/s spikes) that reach
+    # 100k+ sigma after StandardScaler, inflating AE reconstruction errors and threshold.
+    # Clip at ±N sigma to prevent val-benign outliers from contaminating threshold calibration.
+    ae_outlier_clip_sigma: float = 5.0
+
     # Feature engineering
     smote_max_per_class: int = 50_000
     variance_threshold: float = 0.0

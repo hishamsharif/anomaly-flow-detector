@@ -97,9 +97,10 @@ def run_feature_engineering(
     X_train_benign = X_train[benign_train_mask] if benign_train_mask.any() else X_train
     detector_scaler = StandardScaler()
     detector_scaler.fit(X_train_benign)
-    X_train_detector = detector_scaler.transform(X_train_benign)   # benign rows only
-    X_val_detector   = detector_scaler.transform(X_val)
-    X_test_detector  = detector_scaler.transform(X_test)
+    _clip = getattr(settings, "ae_outlier_clip_sigma", 5.0)
+    X_train_detector = np.clip(detector_scaler.transform(X_train_benign), -_clip, _clip)
+    X_val_detector   = np.clip(detector_scaler.transform(X_val),          -_clip, _clip)
+    X_test_detector  = np.clip(detector_scaler.transform(X_test),         -_clip, _clip)
 
     result = FeatureEngResult(
         variance_mask=variance_filter.mask,
