@@ -68,7 +68,7 @@ Copy `.env.demo` to `.env`. All variables are optional — defaults shown.
 
 ```ini
 DATABASE_URL=sqlite+aiosqlite:///./data/afd.db
-MODEL_ARTIFACT_DIR=models
+MODEL_ARTIFACT_DIR=artifacts
 DEVICE=auto                         # "auto" resolves via torch.cuda.is_available()
 
 CLF_CONFIDENCE_THRESHOLD=0.5
@@ -123,7 +123,7 @@ Development
   make lint               Ruff check + format check
   make migrate            Apply Alembic migrations
   make export-spec        Write docs/openapi.json from the live app
-  make clean-models       Delete versioned model artifacts under models/
+  make clean-models       Delete versioned model artifacts under artifacts/
 ```
 
 ---
@@ -131,7 +131,7 @@ Development
 ## Demo Workflow
 
 1. `make start` — starts API + UI
-2. Navigate to **Training** → select XGBoost + MLP-AE → **Start Training** (SSE progress bar)
+2. Run `make eda` → `make train` offline first (trains classifier + AE on CIC-IDS2017)
 3. Navigate to **Inference** → upload a CSV or PCAP file → **Run Inference**
 4. Expand alert rows → review XAI feature attributions → submit analyst verdicts
 5. Navigate to **Dashboard** → watch the HITL verdict progress bar fill toward K=50
@@ -140,6 +140,9 @@ Development
 
 Offline CLI (no server required):
 ```bash
+# EDA + preprocessing report
+make eda
+
 # Initial training
 make train
 
@@ -147,8 +150,8 @@ make train
 make infer CSV=data/sample.csv OUTPUT=results.csv
 
 # Or invoke directly
-PYTHONPATH=. python inference/inference_offline.py --csv data/sample.csv
-PYTHONPATH=. python inference/inference_offline.py --pcap data/capture.pcap --output results.csv
+PYTHONPATH=. python api/offline/infer.py --csv data/sample.csv
+PYTHONPATH=. python api/offline/infer.py --pcap data/capture.pcap --output results.csv
 ```
 
 ---
@@ -213,7 +216,7 @@ These directories are bind-mounted out of the container — they survive `make s
 |---|---|---|
 | `data/afd.db` | SQLite database (alerts, model registry, verdicts) | Reset with `make resetup` |
 | `data/CIC-IDS2017/` | Dataset CSV files (~225 MB) | Populated by `make setup` |
-| `models/` | Versioned model artifacts (one sub-folder per trained version) | Cleared by `make resetup` |
+| `artifacts/` | Versioned model artifacts (one sub-folder per trained version) | Cleared by `make resetup` |
 | `logs/` | `api.log`, `ui.log` | `make logs [api|ui]` to follow |
 
 ---
@@ -222,15 +225,14 @@ These directories are bind-mounted out of the container — they survive `make s
 
 ```
 config/       Pydantic Settings — single source of configuration
-db/           Shared ORM models, DeclarativeBase, sync DB helpers
-api/          FastAPI app — routers, DAO layer, schemas, jobs
-alembic/      DB schema migrations
-core/         Rule engine, classifier + detector protocols, model store
-training/     Feature engineering, initial training, AE fine-tune pipelines
-inference/    3-stage inference pipeline, CSV + PCAP adapters
-tests/        Pytest suite
+db/           ORM models, DeclarativeBase, sync helpers, Alembic migrations (db/migrations/)
+api/http/     FastAPI app — routers, DAO layer, schemas, jobs (HTTP boundary)
+api/offline/  CLI entry points — eda.py, train.py, infer.py (CLI boundary)
+pipeline/     All ML logic — eda/, preprocessing/, models/, training/, evaluation/, inference/
+runtime/      Host-environment probes (CUDA, Docker), preflight checks
+tests/        Pytest suite (unit/ and integration/)
 ui/           React 18 + Vite + Tailwind SPA (5 tabs)
 data/         SQLite DB + CIC-IDS2017 dataset (not committed)
-models/       Versioned model artifacts (not committed)
+artifacts/    Versioned model artifacts (not committed)
 docs/         OpenAPI spec, architecture notes
 ```

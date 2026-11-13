@@ -56,21 +56,21 @@ recorded). Stage 3 only determines the final verdict when Stage 2 did not fire.
 
 | Component | Responsibility |
 |-----------|---------------|
-| `core/rule_engine.py` | Deterministic rules — CVE signatures, IP blocklists, trusted ranges. Zero ML. |
-| `core/classifiers/xgboost_clf.py` | Supervised XGBoost — detects known attack patterns from labelled CIC-IDS2017 data |
-| `core/detectors/mlp_ae.py` | MLP Autoencoder — trained on benign-only traffic; high reconstruction error = anomalous |
-| `core/store.py` | `ModelStore` singleton — in-memory active bundle; `save_artifacts()` / `load_into_memory()` |
-| `training/pipelines/initial.py` | Full training pipeline: data load → feature engineering → XGBoost + AE fit → evaluate → save atomically → auto-promote |
-| `training/pipelines/fine_tune.py` | AE-only retrain: load prev bundle → replay buffer → freeze encoder → recalibrate threshold → regression gate → copy classifier (I5) → promote |
-| `training/feature_eng/` | Variance filter → correlation filter → optional SelectKBest → dual scalers (classifier + detector paths) |
-| `inference/pipeline.py` | Batch 3-stage inference runner: rules → XGBoost → AE → consensus + severity |
-| `inference/adapters/csv_adapter.py` | CSV → validated feature rows (I3 shape check) |
-| `inference/adapters/pcap_adapter.py` | PCAP → flow features via nfstream (best-effort CIC-IDS2017 column mapping) |
-| `api/` | FastAPI app — routers, schemas, jobs bridge, DB models |
-| `api/jobs.py` | `ThreadPoolExecutor` + append-only SSE event log — training + predict background jobs |
+| `pipeline/rule_engine.py` | Deterministic rules — CVE signatures, IP blocklists, trusted ranges. Zero ML. |
+| `pipeline/models/classifier/xgboost_model.py` | Supervised XGBoost — detects known attack patterns from labelled CIC-IDS2017 data |
+| `pipeline/models/detector/autoencoder.py` | MLP Autoencoder — trained on benign-only traffic; high reconstruction error = anomalous |
+| `pipeline/store.py` | `ModelStore` singleton — in-memory active bundle; `save_artifacts()` / `load_into_memory()` |
+| `pipeline/training/train_classifier.py` | Full training pipeline: data load → feature engineering → XGBoost + AE fit → evaluate → save atomically → auto-promote |
+| `pipeline/training/train_detector.py` | AE-only retrain: load prev bundle → replay buffer → freeze encoder → recalibrate threshold → regression gate → copy classifier (I5) → promote |
+| `pipeline/preprocessing/` | Variance filter → correlation filter → optional SelectKBest → dual scalers (classifier + detector paths) |
+| `pipeline/inference/predict_classifier.py` | Batch 3-stage inference runner: rules → XGBoost → AE → consensus + severity |
+| `pipeline/inference/adapters/csv_adapter.py` | CSV → validated feature rows (I3 shape check) |
+| `pipeline/inference/adapters/pcap_adapter.py` | PCAP → flow features via nfstream (best-effort CIC-IDS2017 column mapping) |
+| `api/http/` | FastAPI app — routers, schemas, jobs bridge, DB models (HTTP boundary) |
+| `api/http/jobs.py` | `ThreadPoolExecutor` + append-only SSE event log — training + predict background jobs |
+| `api/offline/` | CLI entry points — eda.py, train.py, infer.py (CLI boundary) |
+| `pipeline/coordinator.py` | Orchestrates all ML pipeline stages; `on_progress` callback bridges HTTP (SSE) and offline (print) |
 | `runtime/` | Host environment probes — CUDA, Docker, image inventory; resolved once at startup |
-| `training/train_offline.py` | Offline initial training entry point — trains classifier + AE on CIC-IDS2017, no server required (`make train`) |
-| `inference/inference_offline.py` | Standalone CLI examiner — loads active model from SQLite, scores CSV/PCAP without HTTP overhead |
 
 ---
 
@@ -111,10 +111,10 @@ recorded). Stage 3 only determines the final verdict when Stage 2 did not fire.
 
 ## Artifact Directory Layout
 
-Each trained version is saved atomically to `models/<name>/`:
+Each trained version is saved atomically to `artifacts/<name>/`:
 
 ```
-models/<name>/
+artifacts/<name>/
   classifier.joblib     XGBoost model (frozen after initial training — ADR-03)
   detector.pt           MLP-AE state dict + threshold + n_features
   clf_scaler.joblib     StandardScaler for classifier input path
@@ -126,7 +126,7 @@ models/<name>/
   metadata.json         Metrics + config snapshot at training time
 ```
 
-Write is atomic: data goes to `models/tmp_<run_id>/`, then renamed to `models/<name>/` on
+Write is atomic: data goes to `artifacts/tmp_<run_id>/`, then renamed to `artifacts/<name>/` on
 success. A partial write (crash mid-training) leaves only the `tmp_` dir which is ignored.
 
 ---
