@@ -286,7 +286,7 @@ export default function InferencePage() {
   }
 
   return (
-    <div className="max-w-6xl space-y-6">
+    <div className="w-full max-w-6xl mx-auto space-y-6">
       <h2 className="text-lg font-semibold text-white">Inference</h2>
 
       {/* Upload + submit */}

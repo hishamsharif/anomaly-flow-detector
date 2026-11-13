@@ -443,7 +443,7 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
 
 export default function DatasetPage() {
   return (
-    <div className="max-w-5xl space-y-8">
+    <div className="w-full max-w-5xl mx-auto space-y-8">
 
       {/* Header */}
       <div>

@@ -56,7 +56,7 @@ export default function DashboardPage() {
     : 100
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="w-full max-w-4xl mx-auto space-y-6">
       <div className="flex items-start justify-between gap-4">
         <h2 className="text-lg font-semibold text-white">Dashboard</h2>
         {activeModel ? (

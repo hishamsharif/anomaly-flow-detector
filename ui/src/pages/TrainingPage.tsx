@@ -107,7 +107,7 @@ export default function TrainingPage() {
   }
 
   return (
-    <div className="max-w-4xl">
+    <div className="w-full max-w-4xl mx-auto">
       <h2 className="text-lg font-semibold text-white mb-6">Training</h2>
 
       {error && (

@@ -144,7 +144,7 @@ export default function AboutPage() {
   }, [])
 
   return (
-    <div className="max-w-5xl space-y-6">
+    <div className="w-full max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-white">About</h2>
         {data && (
