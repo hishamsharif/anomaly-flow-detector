@@ -125,6 +125,83 @@ function corrColor(v: number, dark: boolean): string {
   }
 }
 
+// ── Chart 0: Class imbalance donut ────────────────────────────────────────────
+
+const TOTAL_FLOWS  = CLASS_COUNTS.reduce((a, b) => a + b, 0)
+const BENIGN_COUNT = CLASS_COUNTS[0]
+const ATTACK_COUNT = TOTAL_FLOWS - BENIGN_COUNT
+
+function ClassImbalanceDonut() {
+  const ref = useCanvas((ctx, w, h, dark) => {
+    const cx = w / 2
+    const cy = h / 2
+    const outerR = Math.min(cx, cy) - 8
+    const innerR = outerR * 0.58
+
+    const benignFrac  = BENIGN_COUNT / TOTAL_FLOWS
+    const attackFrac  = ATTACK_COUNT / TOTAL_FLOWS
+    const benignEnd   = -Math.PI / 2 + benignFrac * 2 * Math.PI
+
+    // Benign arc
+    ctx.beginPath()
+    ctx.moveTo(cx, cy)
+    ctx.arc(cx, cy, outerR, -Math.PI / 2, benignEnd)
+    ctx.arc(cx, cy, innerR, benignEnd, -Math.PI / 2, true)
+    ctx.closePath()
+    ctx.fillStyle = 'rgba(59,91,219,0.82)'
+    ctx.fill()
+
+    // Attack arc
+    ctx.beginPath()
+    ctx.moveTo(cx, cy)
+    ctx.arc(cx, cy, outerR, benignEnd, -Math.PI / 2 + 2 * Math.PI)
+    ctx.arc(cx, cy, innerR, -Math.PI / 2 + 2 * Math.PI, benignEnd, true)
+    ctx.closePath()
+    ctx.fillStyle = 'rgba(230,57,70,0.82)'
+    ctx.fill()
+
+    // Thin separator ring
+    ctx.beginPath()
+    ctx.arc(cx, cy, outerR, 0, 2 * Math.PI)
+    ctx.strokeStyle = dark ? '#1a1f2e' : '#f0f2f8'
+    ctx.lineWidth = 2
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.arc(cx, cy, innerR, 0, 2 * Math.PI)
+    ctx.stroke()
+
+    // Center label
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = dark ? '#e2e8f0' : '#1a202c'
+    ctx.font = `bold ${Math.round(outerR * 0.3)}px system-ui, sans-serif`
+    ctx.fillText((benignFrac * 100).toFixed(1) + '%', cx, cy - outerR * 0.12)
+    ctx.font = `${Math.round(outerR * 0.17)}px system-ui, sans-serif`
+    ctx.fillStyle = dark ? '#9ba3c0' : '#4a5068'
+    ctx.fillText('Benign', cx, cy + outerR * 0.15)
+
+    // Legend
+    const ly = h - 14
+    const items = [
+      { label: `Benign — ${(benignFrac * 100).toFixed(1)}% (${(BENIGN_COUNT / 1e6).toFixed(2)}M)`, color: 'rgba(59,91,219,0.82)' },
+      { label: `Attacks — ${(attackFrac * 100).toFixed(1)}% (${(ATTACK_COUNT / 1e3).toFixed(0)}k)`, color: 'rgba(230,57,70,0.82)' },
+    ]
+    let lx = w / 2 - 170
+    items.forEach(({ label, color }) => {
+      ctx.fillStyle = color
+      ctx.fillRect(lx, ly - 6, 10, 10)
+      ctx.fillStyle = dark ? '#9ba3c0' : '#4a5068'
+      ctx.font = '10px system-ui, sans-serif'
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(label, lx + 13, ly)
+      lx += ctx.measureText(label).width + 32
+    })
+  }, [])
+
+  return <canvas ref={ref} style={{ width: '100%', height: '220px', display: 'block' }} />
+}
+
 // ── Chart 1: Class distribution (horizontal log-scale bar) ───────────────────
 
 function ClassDistributionChart() {
@@ -335,11 +412,6 @@ function CorrelationHeatmap() {
     const labelH = 70
     const maxCell = Math.floor((w - labelW - 4) / n)
     const cellSize = Math.min(maxCell, 36)
-    const totalH = labelH + n * cellSize + 20
-
-    const canvas = ctx.canvas
-    canvas.style.width = (labelW + n * cellSize) + 'px'
-    canvas.style.height = totalH + 'px'
 
     // Cells
     for (let r = 0; r < n; r++) {
@@ -408,7 +480,7 @@ function CorrelationHeatmap() {
   return (
     <canvas
       ref={ref}
-      style={{ width: '100%', height: `${20 * 36 + 90}px`, display: 'block', overflowX: 'auto' }}
+      style={{ width: '800px', minWidth: '800px', height: `${20 * 36 + 90}px`, display: 'block' }}
     />
   )
 }
@@ -471,8 +543,18 @@ export default function DatasetPage() {
           <p className="text-xs text-gray-500 mt-0.5">Log-scale x-axis · full 2.83M-flow corpus · no sampling</p>
         </div>
 
-        <div className="overflow-x-auto">
-          <ClassDistributionChart />
+        {/* Two-column: donut (binary split) + per-class bar */}
+        <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6 items-start">
+          <div>
+            <p className="text-xs text-gray-500 text-center mb-1 uppercase tracking-wide">Binary split</p>
+            <ClassImbalanceDonut />
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">Per-class breakdown (log scale)</p>
+            <div className="overflow-x-auto">
+              <ClassDistributionChart />
+            </div>
+          </div>
         </div>
 
         <Insight adr="Motivates ADR-04 & ADR-14">
