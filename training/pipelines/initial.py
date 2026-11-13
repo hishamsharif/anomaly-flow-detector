@@ -26,6 +26,7 @@ def run_initial_training(
     settings,
     emit: Callable[[str, str], None],
     db_url: str,
+    device: str = "cpu",
 ) -> None:
     training_start_time = time.time()
     try:
@@ -44,15 +45,6 @@ def run_initial_training(
             feat_result,
         ) = run_feature_engineering(train_df, val_df, test_df, settings)
         emit("step", "30")
-
-        # Resolve device
-        device = settings.device
-        if device == "auto":
-            try:
-                import torch
-                device = "cuda" if torch.cuda.is_available() else "cpu"
-            except ImportError:
-                device = "cpu"
 
         # 3. Fit classifier on full scaled training set (all classes)
         emit("progress", f"Training {CLASSIFIER_REGISTRY[classifier_type].label} …")

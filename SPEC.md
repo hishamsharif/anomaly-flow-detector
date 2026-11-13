@@ -4,7 +4,7 @@
 > from it. Before changing behaviour, change the spec first. Drift between the spec and the
 > running system is a bug.
 
-**Version:** 2.0.0-draft  
+**Version:** 2.0.0  
 **Date:** 2026-11-02  
 **Supersedes:** `dev/anomaly-net-flow/` (V1, CS7003NU A2 implementation)  
 **Assessment:** CS7003NU A2 — Individual Coursework (criterion a + b)
@@ -63,7 +63,7 @@ Explicitly out of scope for V2. Listing these prevents scope creep during implem
 | Real-time packet capture (streaming NIDS) | Batch CSV/PCAP is sufficient; architecture allows adding a stream adapter in a future version |
 | Multi-user / RBAC / TLS | Single-user local deployment only; adding auth/authz is a deployment concern, not a model concern |
 | Celery, Redis, or external task queues | In-process threading is sufficient and adds zero external dependencies (ADR-07) |
-| Auto-download of CIC-IDS2017 | Manual placement only; avoids complex download/auth logic and keeps the setup path predictable |
+| Automated ML experiment tracking (MLflow, W&B) | Out of scope; metrics are stored in the DB and surfaced in the UI |
 
 ---
 
@@ -456,8 +456,9 @@ Consensus:
 **Pre-condition:** `eligible_verdict_count ≥ FINE_TUNE_K_THRESHOLD`
 
 **Process:**
-1. Fetch benign flows since last savepoint — filter: `(analyst_verdict = 'confirmed' AND consensus = 'SAFE') OR analyst_verdict = 'override'`
+1. Fetch all confirmed benign flows — filter: `(analyst_verdict = 'confirmed' AND consensus = 'SAFE') OR analyst_verdict = 'override'`
    (`confirmed` on a SAFE alert = analyst agreed the flow is benign; `override` on any attack alert = analyst corrected the verdict to benign)
+   (Savepoint tracking — fetching only flows since the last fine-tune — is a V3 enhancement)
 2. Combine with `AE_REPLAY_BUFFER_FRACTION` × historical benign training data
 3. Load previous AE checkpoint; freeze encoder weights for `AE_FREEZE_EPOCHS` epochs
 4. Fine-tune for remaining epochs with encoder unfrozen
@@ -473,6 +474,8 @@ Consensus:
 ## 6. UI Contract
 
 **SPA with 5 tabs — React 18 + TypeScript + Vite 5 + Tailwind:**
+
+Tab order: **Dashboard → Dataset → Training → Inference → About**
 
 ### Dashboard
 - Active model name + status badge
@@ -595,7 +598,7 @@ anomaly-flow-detector/
 ├── api/
 │   ├── main.py                     ← FastAPI app, lifespan, CORS, router includes
 │   ├── schemas.py                  ← ALL Pydantic request/response schemas ← SDD contract layer
-│   ├── jobs.py                     ← ThreadPoolExecutor + SSE bridge (target: < 100 lines)
+│   ├── jobs.py                     ← ThreadPoolExecutor + SSE bridge (~147 lines: training jobs + predict jobs)
 │   ├── dao/
 │   │   ├── db_conn.py              ← async engine, AsyncSessionLocal, get_db FastAPI dependency
 │   │   ├── alerts.py               ← alert CRUD (sync for thread workers, async for routers)
@@ -711,12 +714,12 @@ This section documents what was learned from V1 (`dev/anomaly-net-flow/`) and dr
 |------------|-----------|--------|
 | `ALTER TABLE` in `main.py` startup | Schema changed after initial deploy; no migration tool | **Alembic** from day 1 |
 | `training/` imported from `api/config` | Convenient shortcut that created coupling | Training functions receive config as plain args |
-| `LabelledFlow.features_json` (entire 78-col JSON per flow) | Over-engineered; only label + flow_id needed for retraining | `verdicts` table: only `flow_id`, `label`, `source`, `timestamp` |
+| `LabelledFlow.features_json` (entire 78-col JSON per flow) | Over-engineered; only label + flow_id needed for retraining | Analyst verdict stored as columns on `Alert` (`analyst_verdict`, `override_label`, `feedback_at`); `features_json` retained on `Alert` for HITL replay — no separate verdicts table (§3.1 is the authoritative schema) |
 | `FeatureSchemaVersion` table (mostly NULL FKs) | Over-abstracted for a single-dataset app | Dropped; feature schema lives in `metadata.json` artifact |
 | `celery_task_id` field in `TrainingRun` | Celery was tried then abandoned; field never cleaned up | Field removed |
 | `requirements.prod.txt` alongside `requirements.txt` | Two files drifted; unclear which to use | Single `requirements.txt` |
 | CORS defined in both `config.py` and `docker-compose.yml` env block | CORS origins differ between local and Docker | Config.py only; docker-compose uses `env_file` |
-| `api/tasks.py` — 414 lines (async/thread bridge) | Grew organically with each feature | `api/jobs.py` — clean rewrite, target < 100 lines |
+| `api/tasks.py` — 414 lines (async/thread bridge) | Grew organically with each feature | `api/jobs.py` — clean rewrite (~147 lines: handles both training SSE jobs and async predict jobs) |
 | `inference/explainers/` — empty stub dir | Placeholder for future work that never came | Create dirs only when files go in them |
 | `api/routers/pipeline.py` — unclear purpose | Added during a refactor, never clarified | Dropped |
 | Scattered Pydantic schemas across routers | No central contract; drift between routers | `api/schemas.py` — single source |
@@ -736,7 +739,7 @@ Based on the [InfoQ article "Spec Driven Development: When Architecture Becomes 
 |-------|-------------|------|
 | **Specification** | `SPEC.md` (this file) | Authoritative intent — humans write and govern; version-controlled and peer-reviewed |
 | **Generation** | `api/schemas.py` → FastAPI | Pydantic models = machine-executable contract; FastAPI generates `docs/openapi.json` from them |
-| **Artifacts** | `docs/openapi.json`, `ui/src/api/client.ts` | Regenerable outputs — never hand-edited; always recreated by `make export-spec` |
+| **Artifacts** | `docs/openapi.json` | Regenerable output — recreated by `make export-spec`; committed to `docs/` |
 | **Validation** | `tests/` | Each test asserts one behavioral guarantee from §4 or §5; a failing test is a conformance failure |
 | **Runtime** | FastAPI app + `inference/pipeline.py` | Shape is entirely constrained by the layers above |
 
@@ -746,7 +749,8 @@ Based on the [InfoQ article "Spec Driven Development: When Architecture Becomes 
 2. **Update `api/schemas.py`** to reflect the new contract
 3. **Write a failing test** that asserts the new behavior
 4. **Implement** until the test passes
-5. **Run `make export-spec`** — regenerates `docs/openapi.json` and updates `client.ts`
+5. **Run `make export-spec`** — regenerates `docs/openapi.json` from `api/schemas.py` via FastAPI's `app.openapi()`
+   (`ui/src/api/client.ts` is hand-maintained in sync with `api/schemas.py` — not auto-generated)
 
 **Drift = bug.** Drift is any divergence between declared intent (SPEC.md) and observed system behavior. Examples:
 - API returns a field not in `api/schemas.py`
@@ -754,7 +758,7 @@ Based on the [InfoQ article "Spec Driven Development: When Architecture Becomes 
 - A test asserts behavior not described in SPEC.md
 - A schema field type changes in code without a SPEC.md commit
 
-Fix the spec or fix the code — never both simultaneously without an explicit spec-update commit. `docs/openapi.json` and `client.ts` are generated artifacts; if they diverge from `api/schemas.py`, run `make export-spec` — do not patch them by hand. Without continuous conformance checking, SDD collapses back into documentation-driven development.
+Fix the spec or fix the code — never both simultaneously without an explicit spec-update commit. `docs/openapi.json` is a generated artifact; if it diverges from `api/schemas.py`, run `make export-spec` — do not patch it by hand. `ui/src/api/client.ts` is hand-maintained in sync with `api/schemas.py` — treat any divergence between them as a conformance bug. Without continuous conformance checking, SDD collapses back into documentation-driven development.
 
 **Breaking-change gate:** Any change that removes a field, changes a type, or alters a behavioral guarantee (verdict values, error codes, threshold semantics) requires a SPEC.md commit before any code change. That commit is the approval gate.
 
@@ -906,8 +910,10 @@ SSE via `asyncio.Queue`.
 (a) marking stale `training` status rows as `failed` on startup, and
 (b) the artifact-write atomicity guarantee (ADR-12).
 
-**V1 issue:** `api/tasks.py` grew to 414 lines. V2 target: `api/jobs.py` < 100 lines by
-keeping the pattern but removing accumulated ceremony.
+**V1 issue:** `api/tasks.py` grew to 414 lines. V2 `api/jobs.py` is ~147 lines: the original
+< 100 target was aspirational; predict-job management (async polling, result storage) added
+a second job type with its own state, bringing the final count to 147. The pattern is clean
+and the two job types are clearly separated.
 
 ---
 

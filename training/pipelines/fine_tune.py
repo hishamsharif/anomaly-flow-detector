@@ -43,6 +43,7 @@ def run_ae_fine_tune(
     emit: Callable[[str, str], None],
     db_url: str,
     analyst_flows: list[dict] | None = None,
+    device: str = "cpu",
 ) -> None:
     training_start_time = time.time()
     try:
@@ -50,15 +51,6 @@ def run_ae_fine_tune(
         emit("progress", "Loading previous model bundle …")
         store = ModelStore.get()
         bundle = store.load_into_memory(prev_artifact_path)
-
-        # 2. Resolve device
-        device = settings.device
-        if device == "auto":
-            try:
-                import torch
-                device = "cuda" if torch.cuda.is_available() else "cpu"
-            except ImportError:
-                device = "cpu"
 
         # 3. Load fresh AE instance with correct device, then restore saved weights
         detector = ANOMALY_DETECTOR_REGISTRY[detector_type](device=device)

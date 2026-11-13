@@ -151,7 +151,7 @@ def test_mlp_ae_save_load(tmp_path):
 async def test_training_start_returns_202(client: AsyncClient):
     with patch("api.routers.training.run_initial_training") as mock_fn:
         # Make the training job complete immediately
-        def _immediate(run_id, version_id, version_name, clf_type, det_type, settings, emit, db_url):
+        def _immediate(run_id, version_id, version_name, clf_type, det_type, settings, emit, db_url, device="cpu"):
             emit("step", "100")
             emit("done", "done")
         mock_fn.side_effect = _immediate
@@ -172,7 +172,7 @@ async def test_training_start_409_when_already_training(client: AsyncClient):
 
     barrier = threading.Event()
 
-    def _slow(run_id, version_id, version_name, clf_type, det_type, settings, emit, db_url):
+    def _slow(run_id, version_id, version_name, clf_type, det_type, settings, emit, db_url, device="cpu"):
         barrier.wait(timeout=5)
         emit("done", "done")
 

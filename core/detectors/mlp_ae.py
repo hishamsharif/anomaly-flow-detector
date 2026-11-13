@@ -52,8 +52,6 @@ class MLPAutoencoder:
         return self._threshold
 
     def _resolve_device(self) -> torch.device:
-        if self._device_str == "auto":
-            return torch.device("cuda" if torch.cuda.is_available() else "cpu")
         return torch.device(self._device_str)
 
     def fit(self, X: np.ndarray, **kwargs) -> None:

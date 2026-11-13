@@ -1,0 +1,1164 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Anomaly Flow Detector",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health Check",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/preflight": {
+      "get": {
+        "summary": "Preflight",
+        "operationId": "preflight_api_preflight_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/models/available-types": {
+      "get": {
+        "tags": [
+          "models"
+        ],
+        "summary": "Available Types",
+        "operationId": "available_types_api_models_available_types_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvailableTypesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/models/active": {
+      "get": {
+        "tags": [
+          "models"
+        ],
+        "summary": "Get Active",
+        "operationId": "get_active_api_models_active_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ModelVersionResponse"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Active Api Models Active Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/models": {
+      "get": {
+        "tags": [
+          "models"
+        ],
+        "summary": "List Models",
+        "operationId": "list_models_api_models_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedModels"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/models/{model_id}/promote": {
+      "post": {
+        "tags": [
+          "models"
+        ],
+        "summary": "Promote Model",
+        "operationId": "promote_model_api_models__model_id__promote_post",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Model Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelVersionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/training/start": {
+      "post": {
+        "tags": [
+          "training"
+        ],
+        "summary": "Start Training",
+        "operationId": "start_training_api_training_start_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainingStartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingJobResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/training/{run_id}/events": {
+      "get": {
+        "tags": [
+          "training"
+        ],
+        "summary": "Training Events",
+        "operationId": "training_events_api_training__run_id__events_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/training/{run_id}/status": {
+      "get": {
+        "tags": [
+          "training"
+        ],
+        "summary": "Training Status",
+        "operationId": "training_status_api_training__run_id__status_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/predict/batch": {
+      "post": {
+        "tags": [
+          "predict"
+        ],
+        "summary": "Batch Predict",
+        "operationId": "batch_predict_api_predict_batch_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_batch_predict_api_predict_batch_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/predict/{job_id}/status": {
+      "get": {
+        "tags": [
+          "predict"
+        ],
+        "summary": "Predict Job Status",
+        "operationId": "predict_job_status_api_predict__job_id__status_get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PredictJobStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/predict/{job_id}/results": {
+      "get": {
+        "tags": [
+          "predict"
+        ],
+        "summary": "Predict Job Results",
+        "operationId": "predict_job_results_api_predict__job_id__results_get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts": {
+      "get": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "List Alerts",
+        "operationId": "list_alerts_api_alerts_get",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Size"
+            }
+          },
+          {
+            "name": "consensus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Consensus"
+            }
+          },
+          {
+            "name": "verdict",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Verdict"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedAlerts"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts/{alert_id}/verdict": {
+      "post": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "Submit Verdict",
+        "operationId": "submit_verdict_api_alerts__alert_id__verdict_post",
+        "parameters": [
+          {
+            "name": "alert_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Alert Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerdictRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts/verdict-count": {
+      "get": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "Verdict Count",
+        "operationId": "verdict_count_api_alerts_verdict_count_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerdictCountResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dashboard/summary": {
+      "get": {
+        "tags": [
+          "dashboard"
+        ],
+        "summary": "Dashboard Summary",
+        "operationId": "dashboard_summary_api_dashboard_summary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardSummary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/about": {
+      "get": {
+        "tags": [
+          "about"
+        ],
+        "summary": "Get About",
+        "operationId": "get_about_api_about_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AboutResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AboutResponse": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "active_model": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelVersionResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "active_model",
+          "config"
+        ],
+        "title": "AboutResponse"
+      },
+      "AlertResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "flow_id": {
+            "type": "string",
+            "title": "Flow Id"
+          },
+          "consensus": {
+            "type": "string",
+            "title": "Consensus"
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity"
+          },
+          "predicted_label": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Predicted Label"
+          },
+          "classifier_confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Classifier Confidence"
+          },
+          "ae_score": {
+            "type": "number",
+            "title": "Ae Score"
+          },
+          "ae_threshold": {
+            "type": "number",
+            "title": "Ae Threshold"
+          },
+          "top_features": {
+            "items": {
+              "$ref": "#/components/schemas/FeatureContribution"
+            },
+            "type": "array",
+            "title": "Top Features",
+            "default": []
+          },
+          "analyst_verdict": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analyst Verdict"
+          },
+          "feedback_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feedback At"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "flow_id",
+          "consensus",
+          "severity",
+          "ae_score",
+          "ae_threshold",
+          "timestamp"
+        ],
+        "title": "AlertResponse"
+      },
+      "AvailableTypesResponse": {
+        "properties": {
+          "classifiers": {
+            "items": {
+              "$ref": "#/components/schemas/TypeEntry"
+            },
+            "type": "array",
+            "title": "Classifiers"
+          },
+          "detectors": {
+            "items": {
+              "$ref": "#/components/schemas/TypeEntry"
+            },
+            "type": "array",
+            "title": "Detectors"
+          }
+        },
+        "type": "object",
+        "required": [
+          "classifiers",
+          "detectors"
+        ],
+        "title": "AvailableTypesResponse"
+      },
+      "Body_batch_predict_api_predict_batch_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_batch_predict_api_predict_batch_post"
+      },
+      "DashboardSummary": {
+        "properties": {
+          "total_24h": {
+            "type": "integer",
+            "title": "Total 24H"
+          },
+          "safe_24h": {
+            "type": "integer",
+            "title": "Safe 24H"
+          },
+          "known_attack_24h": {
+            "type": "integer",
+            "title": "Known Attack 24H"
+          },
+          "novel_attack_24h": {
+            "type": "integer",
+            "title": "Novel Attack 24H"
+          },
+          "pending_verdict_24h": {
+            "type": "integer",
+            "title": "Pending Verdict 24H"
+          },
+          "by_severity": {
+            "$ref": "#/components/schemas/SeverityCounts"
+          },
+          "verdict_eligible": {
+            "type": "integer",
+            "title": "Verdict Eligible"
+          },
+          "verdict_threshold": {
+            "type": "integer",
+            "title": "Verdict Threshold"
+          },
+          "retrain_unlocked": {
+            "type": "boolean",
+            "title": "Retrain Unlocked"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_24h",
+          "safe_24h",
+          "known_attack_24h",
+          "novel_attack_24h",
+          "pending_verdict_24h",
+          "by_severity",
+          "verdict_eligible",
+          "verdict_threshold",
+          "retrain_unlocked"
+        ],
+        "title": "DashboardSummary"
+      },
+      "FeatureContribution": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "contribution": {
+            "type": "number",
+            "title": "Contribution"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "contribution"
+        ],
+        "title": "FeatureContribution"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ModelVersionResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "classifier_type": {
+            "type": "string",
+            "title": "Classifier Type"
+          },
+          "detector_type": {
+            "type": "string",
+            "title": "Detector Type"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "metrics": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metrics"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "classifier_type",
+          "detector_type",
+          "status",
+          "created_at"
+        ],
+        "title": "ModelVersionResponse"
+      },
+      "PaginatedAlerts": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AlertResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "size"
+        ],
+        "title": "PaginatedAlerts"
+      },
+      "PaginatedModels": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ModelVersionResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "PaginatedModels"
+      },
+      "PredictJobStatusResponse": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "pct": {
+            "type": "integer",
+            "title": "Pct"
+          },
+          "done": {
+            "type": "boolean",
+            "title": "Done"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "pct",
+          "done"
+        ],
+        "title": "PredictJobStatusResponse"
+      },
+      "SeverityCounts": {
+        "properties": {
+          "low": {
+            "type": "integer",
+            "title": "Low",
+            "default": 0
+          },
+          "medium": {
+            "type": "integer",
+            "title": "Medium",
+            "default": 0
+          },
+          "high": {
+            "type": "integer",
+            "title": "High",
+            "default": 0
+          },
+          "critical": {
+            "type": "integer",
+            "title": "Critical",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "SeverityCounts"
+      },
+      "TrainingJobResponse": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id"
+        ],
+        "title": "TrainingJobResponse"
+      },
+      "TrainingStartRequest": {
+        "properties": {
+          "classifier_type": {
+            "type": "string",
+            "title": "Classifier Type"
+          },
+          "detector_type": {
+            "type": "string",
+            "title": "Detector Type"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "default": "initial"
+          }
+        },
+        "type": "object",
+        "required": [
+          "classifier_type",
+          "detector_type"
+        ],
+        "title": "TrainingStartRequest"
+      },
+      "TrainingStatusResponse": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "pct": {
+            "type": "integer",
+            "title": "Pct"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode"
+          },
+          "started_at": {
+            "type": "string",
+            "title": "Started At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "pct",
+          "mode",
+          "started_at"
+        ],
+        "title": "TrainingStatusResponse"
+      },
+      "TypeEntry": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "TypeEntry"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VerdictCountResponse": {
+        "properties": {
+          "eligible": {
+            "type": "integer",
+            "title": "Eligible"
+          },
+          "threshold": {
+            "type": "integer",
+            "title": "Threshold"
+          },
+          "unlocked": {
+            "type": "boolean",
+            "title": "Unlocked"
+          }
+        },
+        "type": "object",
+        "required": [
+          "eligible",
+          "threshold",
+          "unlocked"
+        ],
+        "title": "VerdictCountResponse"
+      },
+      "VerdictRequest": {
+        "properties": {
+          "verdict": {
+            "type": "string",
+            "title": "Verdict"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "verdict"
+        ],
+        "title": "VerdictRequest"
+      }
+    }
+  }
+}

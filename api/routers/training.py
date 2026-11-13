@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from config.settings import get_settings
 from api import jobs
 from api.dao.db_conn import get_db
+from runtime.manifest import get_host_environment
 from api.dao import alerts as alerts_dao
 from api.dao import model_versions as model_versions_dao
 from api.schemas import TrainingJobResponse, TrainingStartRequest, TrainingStatusResponse
@@ -33,6 +34,10 @@ async def start_training(
         raise HTTPException(status_code=409, detail="A training job is already running")
 
     settings = get_settings()
+    # Resolve device here (ADR-23): training/ must never call torch.cuda.is_available().
+    # runtime.manifest caches the CUDA probe result from API startup.
+    env = get_host_environment()
+    device = "cuda" if (settings.device == "auto" and env.cuda_available) or settings.device == "cuda" else "cpu"
 
     prev_path: str | None = None
     if body.mode == "ae_retrain":
@@ -78,14 +83,14 @@ async def start_training(
             run_id, body.mode, run_ae_fine_tune,
             run_id, version.id, version_name,
             body.classifier_type, body.detector_type,
-            prev_path, settings, _emit, db_url, analyst_flows,
+            prev_path, settings, _emit, db_url, analyst_flows, device,
         )
     else:
         jobs.launch_training_job(
             run_id, body.mode, run_initial_training,
             run_id, version.id, version_name,
             body.classifier_type, body.detector_type,
-            settings, _emit, db_url,
+            settings, _emit, db_url, device,
         )
 
     return TrainingJobResponse(run_id=run_id)
