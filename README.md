@@ -98,7 +98,7 @@ Setup
   make setup              Create afd_v2 env + deps (auto GPU) + download CIC-IDS2017 dataset
   make resetup            Wipe env + DB + models + logs and re-run setup (clean slate)
 
-Offline (no server required)
+Offline (standalone)
   make train              Initial training: classifier + AE on CIC-IDS2017  (GPU if available)
   make infer CSV=<file>   Score a CSV through the full pipeline
 

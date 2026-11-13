@@ -22,7 +22,7 @@ help:
 	@echo "    make setup            Create afd_v2 env + deps (GPU if CUDA found) + dataset + migrate"
 	@echo "    make resetup          Wipe env + DB + models, then run setup from scratch"
 	@echo ""
-	@echo "  Offline (no server required)"
+	@echo "  Offline (standalone)"
 	@echo "    make train            Initial training: classifier + AE on CIC-IDS2017  (GPU if available)"
 	@echo "    make infer CSV=<file> Score a CSV through the full pipeline"
 	@echo "                          Optional: OUTPUT=<file>  DB=<path>  (default DB: data/afd.db)"
