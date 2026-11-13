@@ -1,4 +1,4 @@
-.PHONY: help setup resetup start stop logs verify test lint migrate export-spec train infer clean-models api ui
+.PHONY: help setup resetup start stop logs status test lint migrate export-spec train infer clean-models api ui
 
 COMPOSE        = docker compose
 DL_ENV         = /home/hhaniffa/miniconda/envs/afd_v2/bin
@@ -22,7 +22,12 @@ help:
 	@echo "    make setup            Create afd_v2 env + deps (GPU if CUDA found) + dataset + migrate"
 	@echo "    make resetup          Wipe env + DB + models, then run setup from scratch"
 	@echo ""
-	@echo "  Stack"
+	@echo "  Offline (no server required)"
+	@echo "    make train            Initial training: classifier + AE on CIC-IDS2017  (GPU if available)"
+	@echo "    make infer CSV=<file> Score a CSV through the full pipeline"
+	@echo "                          Optional: OUTPUT=<file>  DB=<path>  (default DB: data/afd.db)"
+	@echo ""
+	@echo "  Runtime"
 	@echo "    make start            Start full stack  (Docker if available, local guide otherwise)"
 	@echo "    make start api        Start API locally on :8000  (hot-reload, logs → logs/api.log)"
 	@echo "    make start ui         Start UI dev server on :5173  (logs → logs/ui.log)"
@@ -33,15 +38,10 @@ help:
 	@echo "    make logs api         Follow API logs only"
 	@echo "    make logs ui          Follow UI logs only"
 	@echo ""
-	@echo "  Verify"
-	@echo "    make verify           Check both API and UI are reachable"
-	@echo "    make verify api       Check API /health endpoint"
-	@echo "    make verify ui        Check UI is serving on :5173"
-	@echo ""
-	@echo "  Offline (no server required)"
-	@echo "    make train            Initial training: classifier + AE on CIC-IDS2017"
-	@echo "    make infer CSV=<file> Score a CSV through the full pipeline (no Docker needed)"
-	@echo "                          Optional: OUTPUT=<file>  DB=<path>  (default DB: data/afd.db)"
+	@echo "  Application Status"
+	@echo "    make status           Check both API and UI are reachable"
+	@echo "    make status api       Check API /health endpoint"
+	@echo "    make status ui        Check UI is serving on :5173"
 	@echo ""
 	@echo "  Development"
 	@echo "    make test             Run pytest suite"
@@ -209,8 +209,8 @@ logs:
 		fi; \
 	fi
 
-# ── Verify ─────────────────────────────────────────────────────────────────────
-verify:
+# ── Application Status ─────────────────────────────────────────────────────────
+status:
 	@if [ "$(_COMP)" = "api" ] || [ "$(_COMP)" = "both" ]; then \
 		response=$$(curl -sf http://localhost:8000/health 2>/dev/null); \
 		if [ $$? -eq 0 ]; then \

@@ -98,7 +98,11 @@ Setup
   make setup              Create afd_v2 env + deps (auto GPU) + download CIC-IDS2017 dataset
   make resetup            Wipe env + DB + models + logs, then run setup from scratch
 
-Stack
+Offline (no server required)
+  make train              Initial training: classifier + AE on CIC-IDS2017  (GPU if available)
+  make infer CSV=<file>   Score a CSV through the full pipeline
+
+Runtime
   make start              Start full stack  (Docker if available, local guide otherwise)
   make start api          Start just the API locally on :8000  (hot-reload)
   make start ui           Start just the UI dev server on :5173
@@ -109,10 +113,10 @@ Logs  (auto-detects Docker or local log files)
   make logs api           Follow API logs only
   make logs ui            Follow UI logs only
 
-Verify
-  make verify             Check both API and UI are reachable
-  make verify api         Check API /health endpoint
-  make verify ui          Check UI is serving on :5173
+Application Status
+  make status             Check both API and UI are reachable
+  make status api         Check API /health endpoint
+  make status ui          Check UI is serving on :5173
 
 Development
   make test               Run pytest suite
