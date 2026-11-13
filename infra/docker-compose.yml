@@ -2,7 +2,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: Dockerfile.api
+      dockerfile: infra/Dockerfile.api
       args:
         TORCH_BUILD_TYPE: ${TORCH_BUILD_TYPE:-cpu}
     ports:
@@ -13,7 +13,7 @@ services:
       # Set CIC_IDS2017_DIR in .env to point at the host archive copy.
       # Default falls back to ./data/CIC-IDS2017 for the bundled/downloaded copy.
       - ${CIC_IDS2017_DIR:-./data/CIC-IDS2017}:/app/data/CIC-IDS2017:ro
-      - ./models:/app/models
+      - ./artifacts:/app/artifacts
       - ./logs:/app/logs
     env_file:
       - path: .env
@@ -30,7 +30,7 @@ services:
   ui:
     build:
       context: .
-      dockerfile: Dockerfile.ui
+      dockerfile: infra/Dockerfile.ui
     ports:
       - "5173:5173"
     environment:

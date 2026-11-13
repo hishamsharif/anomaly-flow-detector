@@ -230,6 +230,7 @@ api/http/     FastAPI app — routers, DAO layer, schemas, jobs (HTTP boundary)
 api/offline/  CLI entry points — eda.py, train.py, infer.py (CLI boundary)
 pipeline/     All ML logic — eda/, preprocessing/, models/, training/, evaluation/, inference/
 runtime/      Host-environment probes (CUDA, Docker), preflight checks
+infra/        Docker and Compose files (Dockerfile.api, Dockerfile.ui, docker-compose*.yml)
 tests/        Pytest suite (unit/ and integration/)
 ui/           React 18 + Vite + Tailwind SPA (5 tabs)
 data/         SQLite DB + CIC-IDS2017 dataset (not committed)

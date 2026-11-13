@@ -1,8 +1,8 @@
 .PHONY: help setup resetup start stop logs status test lint migrate export-spec train infer eda clean-models api ui
 
-COMPOSE        = docker compose
+COMPOSE        = docker compose -f infra/docker-compose.yml
 DL_ENV         = /home/hhaniffa/miniconda/envs/afd_v2/bin
-DOCKER_RUNNING = docker compose ps --services --filter status=running 2>/dev/null | grep -q api
+DOCKER_RUNNING = docker compose -f infra/docker-compose.yml ps --services --filter status=running 2>/dev/null | grep -q api
 
 # Parse positional component from MAKECMDGOALS at parse time (before any target definition)
 _COMP := $(or $(filter api ui,$(MAKECMDGOALS)),both)
@@ -151,7 +151,7 @@ start:
 				lsof -ti:8000 -ti:5173 2>/dev/null | xargs -r kill -9 2>/dev/null; true; \
 				if command -v nvidia-smi > /dev/null 2>&1 && nvidia-smi > /dev/null 2>&1; then \
 					echo "CUDA detected — GPU passthrough enabled"; \
-					TORCH_BUILD_TYPE=cu121 $(COMPOSE) -f docker-compose.yml -f docker-compose.gpu.yml up --build -d; \
+					TORCH_BUILD_TYPE=cu121 $(COMPOSE) -f infra/docker-compose.gpu.yml up --build -d; \
 				else \
 					$(COMPOSE) up --build -d; \
 				fi; \
@@ -164,7 +164,7 @@ start:
 			lsof -ti:8000 -ti:5173 2>/dev/null | xargs -r kill -9 2>/dev/null; true; \
 			if command -v nvidia-smi > /dev/null 2>&1 && nvidia-smi > /dev/null 2>&1; then \
 				echo "CUDA detected — GPU passthrough enabled"; \
-				TORCH_BUILD_TYPE=cu121 $(COMPOSE) -f docker-compose.yml -f docker-compose.gpu.yml up --build -d; \
+				TORCH_BUILD_TYPE=cu121 $(COMPOSE) -f infra/docker-compose.gpu.yml up --build -d; \
 			else \
 				$(COMPOSE) up --build -d; \
 			fi; \
