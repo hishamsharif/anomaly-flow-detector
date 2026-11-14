@@ -17,4 +17,6 @@ async def test_preflight_check_shape(client: AsyncClient) -> None:
     for key, check in data.items():
         assert "level" in check, f"{key}.level missing"
         assert "message" in check, f"{key}.message missing"
-        assert check["level"] in VALID_LEVELS, f"{key}.level={check['level']!r} not in {VALID_LEVELS}"
+        assert (
+            check["level"] in VALID_LEVELS
+        ), f"{key}.level={check['level']!r} not in {VALID_LEVELS}"

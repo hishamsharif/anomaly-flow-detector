@@ -5,7 +5,7 @@ from runtime.probe import HostEnvironment
 
 @dataclass
 class CheckResult:
-    level: str          # "ok" | "warn" | "blocker"
+    level: str  # "ok" | "warn" | "blocker"
     message: str
     detail: str | None = None
 

@@ -45,18 +45,22 @@ def load_dataset(dataset_dir: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataF
         raise FileNotFoundError(f"No CSV files found in {dataset_dir}")
 
     train_paths = [p for p in all_csvs if "Friday" not in p.name]
-    val_paths   = [p for p in all_csvs if "Friday" in p.name and "Morning" in p.name]
-    test_paths  = [p for p in all_csvs if "Friday" in p.name and "Afternoon" in p.name]
+    val_paths = [p for p in all_csvs if "Friday" in p.name and "Morning" in p.name]
+    test_paths = [p for p in all_csvs if "Friday" in p.name and "Afternoon" in p.name]
 
     # Fallback: if no Friday split, use 70/15/15 on train_paths
     if not val_paths and not test_paths:
         full_df = _clean(_load_csvs(train_paths))
         n = len(full_df)
         train_end_idx, val_end_idx = int(n * 0.7), int(n * 0.85)
-        return full_df.iloc[:train_end_idx], full_df.iloc[train_end_idx:val_end_idx], full_df.iloc[val_end_idx:]
+        return (
+            full_df.iloc[:train_end_idx],
+            full_df.iloc[train_end_idx:val_end_idx],
+            full_df.iloc[val_end_idx:],
+        )
 
     train_df = _clean(_load_csvs(train_paths)) if train_paths else pd.DataFrame()
-    val_df   = _clean(_load_csvs(val_paths))   if val_paths   else pd.DataFrame()
-    test_df  = _clean(_load_csvs(test_paths))  if test_paths  else pd.DataFrame()
+    val_df = _clean(_load_csvs(val_paths)) if val_paths else pd.DataFrame()
+    test_df = _clean(_load_csvs(test_paths)) if test_paths else pd.DataFrame()
 
     return train_df, val_df, test_df

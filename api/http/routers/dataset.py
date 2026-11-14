@@ -5,8 +5,6 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 
-from config.settings import get_settings
-
 router = APIRouter(prefix="/api/dataset", tags=["dataset"])
 
 
@@ -16,7 +14,6 @@ async def get_dataset_summary():
 
     404 if data/eda_summary.json does not yet exist — run `make eda` first.
     """
-    settings = get_settings()
     # Resolve relative to the project root (where the API process starts)
     summary_path = Path("data/eda_summary.json")
     if not summary_path.exists():

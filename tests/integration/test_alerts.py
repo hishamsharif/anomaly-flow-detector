@@ -1,4 +1,5 @@
 """Slice 3 tests — alerts endpoints (pagination, verdict submission, verdict-count)."""
+
 from __future__ import annotations
 
 import json
@@ -30,6 +31,7 @@ def _make_alert(**kwargs) -> dict:
 async def _insert_alert(client: AsyncClient, **kwargs) -> Alert:
     """Helper: directly add an Alert row via the DB session in the test client."""
     from api.http.dao.db_conn import AsyncSessionLocal
+
     async with AsyncSessionLocal() as db:
         a = Alert(**_make_alert(**kwargs))
         db.add(a)
@@ -39,6 +41,7 @@ async def _insert_alert(client: AsyncClient, **kwargs) -> Alert:
 
 
 # ── Pagination ────────────────────────────────────────────────────────────────
+
 
 async def test_alerts_empty(client: AsyncClient):
     resp = await client.get("/api/alerts")
@@ -88,17 +91,28 @@ async def test_alerts_filter_by_verdict_null(client: AsyncClient):
 
 # ── Alert schema ──────────────────────────────────────────────────────────────
 
+
 async def test_alert_response_shape(client: AsyncClient):
     await _insert_alert(client)
     resp = await client.get("/api/alerts")
     item = resp.json()["items"][0]
-    required = {"id", "flow_id", "consensus", "severity", "ae_score", "ae_threshold",
-                "top_features", "analyst_verdict", "timestamp"}
+    required = {
+        "id",
+        "flow_id",
+        "consensus",
+        "severity",
+        "ae_score",
+        "ae_threshold",
+        "top_features",
+        "analyst_verdict",
+        "timestamp",
+    }
     assert required.issubset(item.keys())
     assert isinstance(item["top_features"], list)
 
 
 # ── Verdict submission ────────────────────────────────────────────────────────
+
 
 async def test_submit_verdict_200(client: AsyncClient):
     a = await _insert_alert(client)
@@ -138,6 +152,7 @@ async def test_submit_verdict_override_with_label(client: AsyncClient):
 
 
 # ── Verdict count ─────────────────────────────────────────────────────────────
+
 
 async def test_verdict_count_zero(client: AsyncClient):
     resp = await client.get("/api/alerts/verdict-count")

@@ -19,6 +19,7 @@ router = APIRouter(prefix="/api/models", tags=["models"])
 
 # Fixed-path routes must come before parameterised routes
 
+
 @router.get("/available-types", response_model=AvailableTypesResponse)
 async def available_types() -> AvailableTypesResponse:
     return AvailableTypesResponse(

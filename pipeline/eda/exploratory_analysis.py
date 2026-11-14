@@ -12,6 +12,7 @@ Scans data/CIC-IDS2017/, computes:
 Writes data/eda_summary.json and prints a terminal report.
 The Dataset tab reads this file at runtime; re-run to refresh.
 """
+
 from __future__ import annotations
 
 import json
@@ -35,19 +36,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 # ── Day label mapping ──────────────────────────────────────────────────────────
 # Maps fragments of CIC-IDS2017 filename → (display label, split)
 _DAY_MAP: list[tuple[str, str, str]] = [
-    ("Monday",                        "Monday",         "train"),
-    ("Tuesday",                       "Tuesday",        "train"),
-    ("Wednesday",                     "Wednesday",      "train"),
-    ("Thursday-WorkingHours-Morning", "Thu AM",         "train"),
-    ("Thursday-WorkingHours-Afternoon", "Thu PM",       "train"),
-    ("Friday-WorkingHours-Morning",   "Fri AM",         "val"),
+    ("Monday", "Monday", "train"),
+    ("Tuesday", "Tuesday", "train"),
+    ("Wednesday", "Wednesday", "train"),
+    ("Thursday-WorkingHours-Morning", "Thu AM", "train"),
+    ("Thursday-WorkingHours-Afternoon", "Thu PM", "train"),
+    ("Friday-WorkingHours-Morning", "Fri AM", "val"),
     ("Friday-WorkingHours-Afternoon-DDos", "Fri PM\n(DDoS)", "test"),
     ("Friday-WorkingHours-Afternoon-PortScan", "Fri PM\n(Scan)", "test"),
 ]
 
 TOP_CORR_FEATURES = 20
-BENIGN_SAMPLE_N   = 5_000
-PREP_SAMPLE_N     = 10_000   # rows used for preprocessing pipeline counts
+BENIGN_SAMPLE_N = 5_000
+PREP_SAMPLE_N = 10_000  # rows used for preprocessing pipeline counts
 
 
 def _day_label(filename: str) -> tuple[str, str]:
@@ -61,10 +62,9 @@ def _day_label(filename: str) -> tuple[str, str]:
 def _load_csv_raw(path: Path) -> pd.DataFrame:
     """Load a single CSV keeping the Label column, return raw DataFrame."""
     import duckdb
+
     db = duckdb.connect()
-    df = db.execute(
-        f"SELECT * FROM read_csv_auto('{path}', header=true, ignore_errors=true)"
-    ).df()
+    df = db.execute(f"SELECT * FROM read_csv_auto('{path}', header=true, ignore_errors=true)").df()
     db.close()
     df.columns = [c.strip().replace(".", "_") for c in df.columns]
     if "Label" not in df.columns:
@@ -81,6 +81,7 @@ def _numeric_features(df: pd.DataFrame) -> list[str]:
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
+
 
 def run_eda(dataset_dir: str, output_path: str = "data/eda_summary.json") -> dict:
     import pandas as pd
@@ -117,12 +118,14 @@ def run_eda(dataset_dir: str, output_path: str = "data/eda_summary.json") -> dic
             if lbl != "BENIGN":
                 attack_counts[lbl] = int(cnt)
 
-        day_rows.append({
-            "name": day_label,
-            "split": split,
-            "benign": benign_count,
-            "attacks": attack_counts,
-        })
+        day_rows.append(
+            {
+                "name": day_label,
+                "split": split,
+                "benign": benign_count,
+                "attacks": attack_counts,
+            }
+        )
 
         full_frames.append(df)
 
@@ -131,7 +134,6 @@ def run_eda(dataset_dir: str, output_path: str = "data/eda_summary.json") -> dic
     # ── 2. Print class distribution ────────────────────────────────────────────
     total_flows = sum(all_class_counts.values())
     benign_total = all_class_counts.get("BENIGN", 0)
-    attack_total = total_flows - benign_total
 
     log.info("─── Class distribution ─────────────────────────────────")
     log.info("  Total flows:     %s", f"{total_flows:,}")
@@ -191,14 +193,15 @@ def run_eda(dataset_dir: str, output_path: str = "data/eda_summary.json") -> dic
             idx = np.unravel_index(np.argmax(triu), triu.shape)
             log.info(
                 "  Strongest pair: %s ↔ %s  ρ=%.2f",
-                corr_features[idx[0]], corr_features[idx[1]], mat[idx[0], idx[1]]
+                corr_features[idx[0]],
+                corr_features[idx[1]],
+                mat[idx[0], idx[1]],
             )
     log.info("")
 
     # ── 6. Build + write summary JSON ─────────────────────────────────────────
     class_counts_list = [
-        {"label": k, "count": v}
-        for k, v in sorted(all_class_counts.items(), key=lambda x: -x[1])
+        {"label": k, "count": v} for k, v in sorted(all_class_counts.items(), key=lambda x: -x[1])
     ]
 
     summary = {
@@ -234,10 +237,15 @@ def _compute_feature_counts(full_df: pd.DataFrame, benign_total: int) -> dict:
     settings = get_settings()
 
     if full_df.empty:
-        return {"raw": 0, "after_variance": 0, "after_correlation": 0, "after_selector": 0,
-                "variance_threshold": settings.variance_threshold,
-                "correlation_threshold": settings.correlation_threshold,
-                "selector_method": settings.feature_selection_method}
+        return {
+            "raw": 0,
+            "after_variance": 0,
+            "after_correlation": 0,
+            "after_selector": 0,
+            "variance_threshold": settings.variance_threshold,
+            "correlation_threshold": settings.correlation_threshold,
+            "selector_method": settings.feature_selection_method,
+        }
 
     # Build a cleaned numeric DataFrame from the raw data
     df = full_df.copy()
@@ -259,10 +267,14 @@ def _compute_feature_counts(full_df: pd.DataFrame, benign_total: int) -> dict:
     attack_idx = np.where(y == 1)[0]
     n_benign = min(len(benign_idx), PREP_SAMPLE_N // 2)
     n_attack = min(len(attack_idx), PREP_SAMPLE_N // 2)
-    sel_idx = np.concatenate([
-        rng.choice(benign_idx, n_benign, replace=False),
-        rng.choice(attack_idx, n_attack, replace=False) if n_attack > 0 else np.array([], dtype=int),
-    ])
+    sel_idx = np.concatenate(
+        [
+            rng.choice(benign_idx, n_benign, replace=False),
+            rng.choice(attack_idx, n_attack, replace=False)
+            if n_attack > 0
+            else np.array([], dtype=int),
+        ]
+    )
     X_s = X[sel_idx]
     y_s = y[sel_idx]
 
@@ -295,7 +307,9 @@ def _compute_feature_counts(full_df: pd.DataFrame, benign_total: int) -> dict:
     }
 
 
-def _compute_correlation(full_df: pd.DataFrame, feature_counts: dict) -> tuple[list[str], list[list[float]]]:
+def _compute_correlation(
+    full_df: pd.DataFrame, feature_counts: dict
+) -> tuple[list[str], list[list[float]]]:
     """Compute Pearson correlation matrix for top-N surviving features on benign sample."""
     names_c: list[str] = feature_counts.get("_names_after_correlation", [])
     if not names_c or full_df.empty:
@@ -338,8 +352,6 @@ def _compute_correlation(full_df: pd.DataFrame, feature_counts: dict) -> tuple[l
     top_idx_sorted = sorted(top_idx.tolist())
 
     sel_names = [available[i] for i in top_idx_sorted]
-    sel_corr  = corr[np.ix_(top_idx_sorted, top_idx_sorted)]
+    sel_corr = corr[np.ix_(top_idx_sorted, top_idx_sorted)]
 
     return sel_names, [[round(float(v), 3) for v in row] for row in sel_corr]
-
-

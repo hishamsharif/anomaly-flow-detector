@@ -4,6 +4,7 @@ Revision ID: 0002
 Revises: 0001
 Create Date: 2026-11-12
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -18,7 +19,8 @@ def upgrade() -> None:
         "alerts",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("flow_id", sa.String(64), nullable=False),
-        # I2: consensus and ae_* fields are append-only; only analyst_verdict / feedback_at updatable
+        # I2: consensus and ae_* fields are append-only;
+        # only analyst_verdict / feedback_at updatable
         sa.Column("consensus", sa.String(32), nullable=False),
         sa.Column("severity", sa.String(32), nullable=False),
         sa.Column("predicted_label", sa.Integer(), nullable=True),

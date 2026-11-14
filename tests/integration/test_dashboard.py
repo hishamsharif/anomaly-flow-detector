@@ -28,6 +28,7 @@ def _alert_dict(**kwargs) -> dict:
 
 async def _insert(client: AsyncClient, **kwargs) -> Alert:
     from api.http.dao.db_conn import AsyncSessionLocal
+
     async with AsyncSessionLocal() as db:
         a = Alert(**_alert_dict(**kwargs))
         db.add(a)
@@ -37,6 +38,7 @@ async def _insert(client: AsyncClient, **kwargs) -> Alert:
 
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
+
 
 async def test_dashboard_summary_empty(client: AsyncClient):
     res = await client.get("/api/dashboard/summary")

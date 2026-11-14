@@ -11,6 +11,7 @@ Usage:
   python inference/inference_offline.py --csv flows.csv --output results.csv
   python inference/inference_offline.py --csv flows.csv --db data/afd.db
 """
+
 from __future__ import annotations
 
 import argparse
@@ -44,6 +45,7 @@ def _load_active_bundle(db_path: str):
         sys.exit(1)
 
     from pipeline.store import ModelStore
+
     return ModelStore.get().load_into_memory(artifact_path)
 
 
@@ -59,9 +61,11 @@ def _parse_input(path: str, feature_names: list[str]):
 
     if suffix == ".csv":
         from pipeline.inference.adapters.csv_adapter import parse_csv
+
         return parse_csv(content, feature_names)
     elif suffix in (".pcap", ".cap"):
         from pipeline.inference.adapters.pcap_adapter import parse_pcap
+
         return parse_pcap(content, feature_names)
     else:
         print(f"ERROR: Unsupported file type '{suffix}' — use .csv or .pcap", file=sys.stderr)
@@ -87,6 +91,7 @@ def _run(input_path: str, db_path: str, output_path: str | None) -> None:
     t0 = time.perf_counter()
 
     from pipeline.inference.predict_classifier import run_batch_inference
+
     results = run_batch_inference(valid_rows, bundle)
 
     elapsed = time.perf_counter() - t0
@@ -101,22 +106,29 @@ def _run(input_path: str, db_path: str, output_path: str | None) -> None:
 
     if output_path:
         fieldnames = [
-            "flow_id", "consensus", "severity",
-            "predicted_label", "classifier_confidence", "ae_score", "ae_threshold",
+            "flow_id",
+            "consensus",
+            "severity",
+            "predicted_label",
+            "classifier_confidence",
+            "ae_score",
+            "ae_threshold",
         ]
         with open(output_path, "w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             for r in results:
-                writer.writerow({
-                    "flow_id": r.flow_id,
-                    "consensus": r.consensus,
-                    "severity": r.severity,
-                    "predicted_label": r.predicted_label,
-                    "classifier_confidence": r.classifier_confidence,
-                    "ae_score": r.ae_score,
-                    "ae_threshold": r.ae_threshold,
-                })
+                writer.writerow(
+                    {
+                        "flow_id": r.flow_id,
+                        "consensus": r.consensus,
+                        "severity": r.severity,
+                        "predicted_label": r.predicted_label,
+                        "classifier_confidence": r.classifier_confidence,
+                        "ae_score": r.ae_score,
+                        "ae_threshold": r.ae_threshold,
+                    }
+                )
         print(f"Results saved → {output_path}")
     else:
         # Print first 20 non-SAFE rows to stdout

@@ -36,8 +36,7 @@ def parse_csv(
         sample = missing_global[:3]
         suffix = f" … and {len(missing_global) - 3} more" if len(missing_global) > 3 else ""
         return [], [
-            {"row": i, "reason": f"missing feature: {sample[0]}{suffix}"}
-            for i in range(len(df))
+            {"row": i, "reason": f"missing feature: {sample[0]}{suffix}"} for i in range(len(df))
         ]
 
     sub = df[feature_names]
@@ -61,7 +60,9 @@ def parse_csv(
                 try:
                     row_values[name] = float(val)
                 except (ValueError, TypeError):
-                    rejected_rows.append({"row": i, "reason": f"non-numeric value in feature: {name}"})
+                    rejected_rows.append(
+                        {"row": i, "reason": f"non-numeric value in feature: {name}"}
+                    )
                     bad = True
                     break
             if not bad:

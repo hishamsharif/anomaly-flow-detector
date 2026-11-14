@@ -3,6 +3,7 @@
 Both api/http/ and api/offline/ call this coordinator; neither contains ML logic.
 The on_progress callback is the polymorphic seam between HTTP (SSE) and offline (print).
 """
+
 from __future__ import annotations
 
 # TODO: implement PipelineCoordinator by extracting orchestration logic from

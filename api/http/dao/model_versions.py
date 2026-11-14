@@ -1,4 +1,5 @@
 """Data Access Object — ModelVersion queries."""
+
 from __future__ import annotations
 
 from sqlalchemy import select, update
@@ -24,16 +25,18 @@ async def get_model_version_by_id(db: AsyncSession, version_id: int) -> ModelVer
 
 async def async_set_active(db: AsyncSession, version_id: int) -> None:
     """Archive the existing active version, then promote version_id to active."""
-    await db.execute(update(ModelVersion).where(ModelVersion.status == "active").values(status="archived"))
-    await db.execute(update(ModelVersion).where(ModelVersion.id == version_id).values(status="active"))
+    await db.execute(
+        update(ModelVersion).where(ModelVersion.status == "active").values(status="archived")
+    )
+    await db.execute(
+        update(ModelVersion).where(ModelVersion.id == version_id).values(status="active")
+    )
     await db.commit()
 
 
 async def mark_stale_training_as_failed(db: AsyncSession) -> None:
     """On startup: any version stuck in 'training' means the process crashed mid-run (ADR-07)."""
     await db.execute(
-        update(ModelVersion)
-        .where(ModelVersion.status == "training")
-        .values(status="failed")
+        update(ModelVersion).where(ModelVersion.status == "training").values(status="failed")
     )
     await db.commit()

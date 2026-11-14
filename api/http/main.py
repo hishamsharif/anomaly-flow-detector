@@ -37,7 +37,11 @@ async def lifespan(app: FastAPI):
                 ModelStore.get().load_into_memory(active.path)
                 logger.info("Loaded active model: %s", active.name)
             except Exception as exc:
-                logger.warning("Active model could not be loaded (%s) — inference will be unavailable until retrained.", exc)
+                logger.warning(
+                    "Active model could not be loaded (%s) — inference will be unavailable"
+                    " until retrained.",
+                    exc,
+                )
     except Exception as exc:
         logger.warning("Startup DB operations skipped: %s", exc)
     yield

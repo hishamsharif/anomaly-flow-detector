@@ -3,6 +3,7 @@
 Provides the async engine, session factory, and the get_db() dependency
 injector used by all API routers via FastAPI's Depends() mechanism.
 """
+
 from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine

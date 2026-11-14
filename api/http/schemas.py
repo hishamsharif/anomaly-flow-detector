@@ -71,6 +71,7 @@ class TrainingStatusResponse(BaseModel):
 
 # ── Inference schemas ──────────────────────────────────────────────────────────
 
+
 class FeatureContribution(BaseModel):
     name: str
     contribution: float
@@ -166,6 +167,7 @@ class VerdictCountResponse(BaseModel):
 
 # ── Dashboard schemas ──────────────────────────────────────────────────────────
 
+
 class ConsensusCounts(BaseModel):
     safe: int = 0
     known_attack: int = 0
@@ -185,7 +187,7 @@ class DashboardSummary(BaseModel):
     safe_24h: int
     known_attack_24h: int
     novel_attack_24h: int
-    pending_verdict_24h: int   # alerts in last 24 h awaiting analyst verdict
+    pending_verdict_24h: int  # alerts in last 24 h awaiting analyst verdict
     # Severity breakdown — all-time cumulative
     by_severity: SeverityCounts
     # HITL retrain eligibility — all-time cumulative running total
@@ -195,6 +197,7 @@ class DashboardSummary(BaseModel):
 
 
 # ── About schema ───────────────────────────────────────────────────────────────
+
 
 class AboutResponse(BaseModel):
     version: str

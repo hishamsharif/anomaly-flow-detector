@@ -39,6 +39,4 @@ class Alert(Base):
     features_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     analyst_verdict: Mapped[str | None] = mapped_column(String(32), nullable=True)
     feedback_at: Mapped[datetime | None] = mapped_column(nullable=True)
-    timestamp: Mapped[datetime] = mapped_column(
-        nullable=False, default=lambda: datetime.now(UTC)
-    )
+    timestamp: Mapped[datetime] = mapped_column(nullable=False, default=lambda: datetime.now(UTC))

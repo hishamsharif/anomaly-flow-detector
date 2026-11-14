@@ -41,7 +41,7 @@ class ModelStore:
         name: str,
         clf: Any,
         ae: Any,
-        feat_result: Any,         # FeatureEngResult
+        feat_result: Any,  # FeatureEngResult
         metrics: dict,
         artifact_dir: str,
         copy_clf_from: str | None = None,

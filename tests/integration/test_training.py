@@ -1,4 +1,5 @@
 """Slice 2 tests — component isolation + API endpoint shape."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -9,6 +10,7 @@ import pandas as pd
 from httpx import AsyncClient
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _make_df(n: int = 200, attack_frac: float = 0.3, seed: int = 42) -> pd.DataFrame:
     fixture = Path(__file__).parent / "fixtures" / "sample_flows.csv"
@@ -22,6 +24,7 @@ def _make_df(n: int = 200, attack_frac: float = 0.3, seed: int = 42) -> pd.DataF
 
 def _make_settings(**overrides):
     from config.settings import get_settings
+
     s = get_settings()
     for k, v in overrides.items():
         object.__setattr__(s, k, v)
@@ -30,8 +33,10 @@ def _make_settings(**overrides):
 
 # ── Feature engineering ───────────────────────────────────────────────────────
 
+
 def test_variance_filter_reduces_features():
     from pipeline.preprocessing.variance_filter import VarianceFilter
+
     X = np.hstack([np.random.rand(100, 5), np.zeros((100, 2))])
     vf = VarianceFilter(threshold=0.0)
     X_out = vf.fit_transform(X)
@@ -41,6 +46,7 @@ def test_variance_filter_reduces_features():
 
 def test_correlation_filter():
     from pipeline.preprocessing.correlation_filter import CorrelationFilter
+
     rng = np.random.default_rng(0)
     X = rng.random((100, 4))
     X[:, 1] = X[:, 0]  # perfectly correlated pair
@@ -53,6 +59,7 @@ def test_correlation_filter():
 
 def test_selector_passthrough_when_k0():
     from pipeline.preprocessing.selector import FeatureSelector
+
     X = np.random.rand(50, 10)
     y = np.array([0] * 25 + [1] * 25)
     sel = FeatureSelector(k=0, method="mi")
@@ -63,6 +70,7 @@ def test_selector_passthrough_when_k0():
 
 def test_feature_eng_pipeline_runs():
     from config.settings import get_settings
+
     df = _make_df(300)
     split = int(len(df) * 0.6)
     vsplit = int(len(df) * 0.8)
@@ -72,6 +80,7 @@ def test_feature_eng_pipeline_runs():
 
     settings = get_settings()
     from pipeline.preprocessing.feature_engineering import run_feature_engineering
+
     result = run_feature_engineering(train_df, val_df, test_df, settings)
     X_train_classifier = result[0]
     feat_res = result[-1]
@@ -81,8 +90,10 @@ def test_feature_eng_pipeline_runs():
 
 # ── XGBoost classifier ────────────────────────────────────────────────────────
 
+
 def test_xgboost_fit_predict():
     from pipeline.models.classifier.xgboost_model import XGBoostClassifier
+
     rng = np.random.default_rng(1)
     X = rng.random((200, 10)).astype(np.float32)
     y = np.array([0] * 100 + [1] * 100)
@@ -96,6 +107,7 @@ def test_xgboost_fit_predict():
 
 def test_xgboost_save_load(tmp_path):
     from pipeline.models.classifier.xgboost_model import XGBoostClassifier
+
     X = np.random.rand(100, 5).astype(np.float32)
     y = np.array([0] * 50 + [1] * 50)
     clf = XGBoostClassifier(device="cpu")
@@ -109,8 +121,10 @@ def test_xgboost_save_load(tmp_path):
 
 # ── MLP Autoencoder ───────────────────────────────────────────────────────────
 
+
 def test_mlp_ae_fit_score():
     from pipeline.models.detector.autoencoder import MLPAutoencoder
+
     X = np.random.rand(100, 20).astype(np.float32)
     ae = MLPAutoencoder(device="cpu", epochs=2, batch_size=32)
     ae.fit(X)
@@ -121,6 +135,7 @@ def test_mlp_ae_fit_score():
 
 def test_mlp_ae_calibrate_threshold():
     from pipeline.models.detector.autoencoder import MLPAutoencoder
+
     X = np.random.rand(200, 20).astype(np.float32)
     ae = MLPAutoencoder(device="cpu", epochs=2, batch_size=32)
     ae.fit(X)
@@ -131,6 +146,7 @@ def test_mlp_ae_calibrate_threshold():
 
 def test_mlp_ae_save_load(tmp_path):
     from pipeline.models.detector.autoencoder import MLPAutoencoder
+
     X = np.random.rand(50, 10).astype(np.float32)
     ae = MLPAutoencoder(device="cpu", epochs=1, batch_size=16)
     ae.fit(X)
@@ -144,18 +160,33 @@ def test_mlp_ae_save_load(tmp_path):
 
 # ── API training endpoints ────────────────────────────────────────────────────
 
+
 async def test_training_start_returns_202(client: AsyncClient):
     with patch("api.http.routers.training.run_initial_training") as mock_fn:
         # Make the training job complete immediately
-        def _immediate(run_id, version_id, version_name, clf_type, det_type, settings, emit, db_url, device="cpu"):
+        def _immediate(
+            run_id,
+            version_id,
+            version_name,
+            clf_type,
+            det_type,
+            settings,
+            emit,
+            db_url,
+            device="cpu",
+        ):
             emit("step", "100")
             emit("done", "done")
+
         mock_fn.side_effect = _immediate
 
-        resp = await client.post("/api/training/start", json={
-            "classifier_type": "xgboost",
-            "detector_type": "mlp_ae",
-        })
+        resp = await client.post(
+            "/api/training/start",
+            json={
+                "classifier_type": "xgboost",
+                "detector_type": "mlp_ae",
+            },
+        )
     assert resp.status_code == 202
     data = resp.json()
     assert "run_id" in data
@@ -165,25 +196,32 @@ async def test_training_start_returns_202(client: AsyncClient):
 async def test_training_start_409_when_already_training(client: AsyncClient):
     import threading
 
-
     barrier = threading.Event()
 
-    def _slow(run_id, version_id, version_name, clf_type, det_type, settings, emit, db_url, device="cpu"):
+    def _slow(
+        run_id, version_id, version_name, clf_type, det_type, settings, emit, db_url, device="cpu"
+    ):
         barrier.wait(timeout=5)
         emit("done", "done")
 
     with patch("api.http.routers.training.run_initial_training", side_effect=_slow):
-        resp1 = await client.post("/api/training/start", json={
-            "classifier_type": "xgboost",
-            "detector_type": "mlp_ae",
-        })
+        resp1 = await client.post(
+            "/api/training/start",
+            json={
+                "classifier_type": "xgboost",
+                "detector_type": "mlp_ae",
+            },
+        )
         assert resp1.status_code == 202
 
         # Second request while first is running
-        resp2 = await client.post("/api/training/start", json={
-            "classifier_type": "xgboost",
-            "detector_type": "mlp_ae",
-        })
+        resp2 = await client.post(
+            "/api/training/start",
+            json={
+                "classifier_type": "xgboost",
+                "detector_type": "mlp_ae",
+            },
+        )
         assert resp2.status_code == 409
 
     barrier.set()
@@ -201,12 +239,16 @@ async def test_training_status_200_after_start(client: AsyncClient):
         def _slow(run_id, version_id, version_name, clf_type, det_type, settings, emit, db_url):
             done_event.wait(timeout=3)
             emit("done", "done")
+
         mock_fn.side_effect = _slow
 
-        resp = await client.post("/api/training/start", json={
-            "classifier_type": "xgboost",
-            "detector_type": "mlp_ae",
-        })
+        resp = await client.post(
+            "/api/training/start",
+            json={
+                "classifier_type": "xgboost",
+                "detector_type": "mlp_ae",
+            },
+        )
         assert resp.status_code == 202
         run_id = resp.json()["run_id"]
 
@@ -220,8 +262,11 @@ async def test_training_status_200_after_start(client: AsyncClient):
 
 
 async def test_training_start_422_unknown_classifier(client: AsyncClient):
-    resp = await client.post("/api/training/start", json={
-        "classifier_type": "unknown_clf",
-        "detector_type": "mlp_ae",
-    })
+    resp = await client.post(
+        "/api/training/start",
+        json={
+            "classifier_type": "unknown_clf",
+            "detector_type": "mlp_ae",
+        },
+    )
     assert resp.status_code == 422

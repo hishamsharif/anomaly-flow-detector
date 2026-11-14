@@ -108,7 +108,9 @@ async def batch_predict(
 
     content = await file.read()
     if len(content) > settings.max_upload_mb * 1024 * 1024:
-        raise HTTPException(status_code=413, detail=f"File exceeds {settings.max_upload_mb} MB limit")
+        raise HTTPException(
+            status_code=413, detail=f"File exceeds {settings.max_upload_mb} MB limit"
+        )
 
     bundle = ModelStore.get().get_active()
     if bundle is None:
@@ -120,14 +122,19 @@ async def batch_predict(
     elif filename.endswith(".csv"):
         valid_rows, rejected = csv_adapter.parse_csv(content, bundle.feature_names)
     else:
-        raise HTTPException(status_code=400, detail="Unsupported file type — upload a .csv or .pcap file")
+        raise HTTPException(
+            status_code=400, detail="Unsupported file type — upload a .csv or .pcap file"
+        )
 
     if not valid_rows:
         from api.http.schemas import RejectedRow
+
         return BatchPredictResponse(
             alerts=[],
             rejected_rows=[RejectedRow(**r) for r in rejected],
-            summary=BatchSummary(total=len(rejected), safe=0, known_attack=0, novel_attack=0, rejected=len(rejected)),
+            summary=BatchSummary(
+                total=len(rejected), safe=0, known_attack=0, novel_attack=0, rejected=len(rejected)
+            ),
         )
 
     if len(valid_rows) <= settings.sync_max_rows:

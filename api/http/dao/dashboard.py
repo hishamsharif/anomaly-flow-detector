@@ -1,4 +1,5 @@
 """Data Access Object — Dashboard summary query."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
@@ -13,33 +14,41 @@ async def get_dashboard_summary(db: AsyncSession, threshold: int) -> dict:
     since = datetime.now(UTC) - timedelta(hours=24)
 
     # 24-hour windowed consensus counts
-    consensus_24h = (await db.execute(
-        select(Alert.consensus, func.count())
-        .where(Alert.timestamp >= since)
-        .group_by(Alert.consensus)
-    )).all()
+    consensus_24h = (
+        await db.execute(
+            select(Alert.consensus, func.count())
+            .where(Alert.timestamp >= since)
+            .group_by(Alert.consensus)
+        )
+    ).all()
     consensus_map = {r[0]: r[1] for r in consensus_24h}
     total_24h: int = sum(consensus_map.values())
 
-    pending_24h = (await db.execute(
-        select(func.count()).select_from(Alert).where(
-            Alert.timestamp >= since,
-            Alert.analyst_verdict.is_(None),
+    pending_24h = (
+        await db.execute(
+            select(func.count())
+            .select_from(Alert)
+            .where(
+                Alert.timestamp >= since,
+                Alert.analyst_verdict.is_(None),
+            )
         )
-    )).scalar_one()
+    ).scalar_one()
 
     # Severity breakdown — all-time cumulative view
-    severity_rows = (await db.execute(
-        select(Alert.severity, func.count()).group_by(Alert.severity)
-    )).all()
+    severity_rows = (
+        await db.execute(select(Alert.severity, func.count()).group_by(Alert.severity))
+    ).all()
     severity_map = {r[0]: r[1] for r in severity_rows}
 
     # Retrain eligibility — all-time running total
-    eligible = (await db.execute(
-        select(func.count()).select_from(Alert).where(
-            Alert.analyst_verdict.in_(["confirmed", "override"])
+    eligible = (
+        await db.execute(
+            select(func.count())
+            .select_from(Alert)
+            .where(Alert.analyst_verdict.in_(["confirmed", "override"]))
         )
-    )).scalar_one()
+    ).scalar_one()
 
     return {
         "total_24h": total_24h,

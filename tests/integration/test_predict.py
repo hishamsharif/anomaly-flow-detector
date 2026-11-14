@@ -1,4 +1,5 @@
 """Slice 3 tests — inference pipeline + predict/alerts endpoints."""
+
 from __future__ import annotations
 
 import io
@@ -31,7 +32,7 @@ def _make_bundle(ae_threshold: float = 0.5, novel_critical_threshold: float = 0.
     clf.feature_importances = np.array([0.4, 0.3, 0.1, 0.1, 0.1])
 
     ae = MagicMock()
-    ae.score.side_effect = lambda X: np.full(len(X), 0.1)        # < ae_threshold (0.5)
+    ae.score.side_effect = lambda X: np.full(len(X), 0.1)  # < ae_threshold (0.5)
     ae.score_per_feature.side_effect = lambda X: np.full((len(X), N_FEATURES), 0.01)
 
     scaler = StandardScaler()
@@ -63,8 +64,10 @@ def _make_csv_bytes(feature_names: list[str], n_rows: int = 3, attack: bool = Fa
 
 # ── csv_adapter unit tests ────────────────────────────────────────────────────
 
+
 def test_csv_adapter_accepts_valid_rows():
     from pipeline.inference.adapters.csv_adapter import parse_csv
+
     content = _make_csv_bytes(FEATURE_NAMES, n_rows=5)
     valid, rejected = parse_csv(content, FEATURE_NAMES)
     assert len(valid) == 5
@@ -74,6 +77,7 @@ def test_csv_adapter_accepts_valid_rows():
 
 def test_csv_adapter_rejects_missing_feature():
     from pipeline.inference.adapters.csv_adapter import parse_csv
+
     # CSV missing feat_e
     partial_names = FEATURE_NAMES[:-1]
     content = _make_csv_bytes(partial_names, n_rows=3)
@@ -87,6 +91,7 @@ def test_csv_adapter_rejects_nan_rows():
     import io
 
     from pipeline.inference.adapters.csv_adapter import parse_csv
+
     # Row 1 has NaN in feat_a
     df = pd.DataFrame({f: [1.0, 2.0, 3.0] for f in FEATURE_NAMES})
     df.at[1, "feat_a"] = float("nan")
@@ -100,8 +105,10 @@ def test_csv_adapter_rejects_nan_rows():
 
 # ── Inference pipeline unit tests ─────────────────────────────────────────────
 
+
 def test_pipeline_known_attack_verdict():
     from pipeline.inference.predict_classifier import run_batch_inference
+
     bundle = _make_bundle()
     # clf returns label=1, conf=0.9 → KNOWN_ATTACK
     flows = [{f: 1.0 for f in FEATURE_NAMES}]
@@ -114,6 +121,7 @@ def test_pipeline_known_attack_verdict():
 
 def test_pipeline_novel_attack_verdict():
     from pipeline.inference.predict_classifier import run_batch_inference
+
     bundle = _make_bundle(ae_threshold=0.05, novel_critical_threshold=0.03)
     # clf returns label=0 (benign), AE score > threshold → NOVEL_ATTACK
     bundle.clf.predict.side_effect = lambda X: (np.zeros(len(X), dtype=int), np.full(len(X), 0.4))
@@ -126,6 +134,7 @@ def test_pipeline_novel_attack_verdict():
 
 def test_pipeline_safe_verdict():
     from pipeline.inference.predict_classifier import run_batch_inference
+
     bundle = _make_bundle(ae_threshold=0.5)
     # clf returns label=0 (benign), AE score < threshold → SAFE
     bundle.clf.predict.side_effect = lambda X: (np.zeros(len(X), dtype=int), np.full(len(X), 0.3))
@@ -139,6 +148,7 @@ def test_pipeline_safe_verdict():
 def test_pipeline_low_confidence_passes_to_stage3():
     """Stage 2 low-confidence flow passes to Stage 3 (confidence gate §5.2)."""
     from pipeline.inference.predict_classifier import run_batch_inference
+
     bundle = _make_bundle(ae_threshold=0.5)
     # clf returns label=1 (attack) but conf < threshold → BENIGN (passes to Stage 3)
     bundle.clf.predict.side_effect = lambda X: (np.ones(len(X), dtype=int), np.full(len(X), 0.3))
@@ -151,6 +161,7 @@ def test_pipeline_low_confidence_passes_to_stage3():
 
 def test_pipeline_top_features_populated():
     from pipeline.inference.predict_classifier import run_batch_inference
+
     bundle = _make_bundle()
     flows = [{f: 1.0 for f in FEATURE_NAMES}]
     results = run_batch_inference(flows, bundle, clf_confidence_threshold=0.5)
@@ -161,6 +172,7 @@ def test_pipeline_top_features_populated():
 def test_pipeline_stage1_safe_rule():
     from pipeline.inference.predict_classifier import run_batch_inference
     from pipeline.rule_engine import RuleEngine
+
     bundle = _make_bundle()
     re = RuleEngine(port_verdict_rules={}, allowlisted_ports=frozenset({443}))
     flows = [{"Destination Port": 443.0, **{f: 1.0 for f in FEATURE_NAMES}}]
@@ -173,6 +185,7 @@ def test_pipeline_stage1_safe_rule():
 def test_pipeline_stage1_known_attack_rule():
     from pipeline.inference.predict_classifier import run_batch_inference
     from pipeline.rule_engine import RuleEngine
+
     bundle = _make_bundle()
     re = RuleEngine(port_verdict_rules={21: "KNOWN_ATTACK"}, allowlisted_ports=frozenset())
     flows = [{"Destination Port": 21.0, **{f: 1.0 for f in FEATURE_NAMES}}]
@@ -183,34 +196,41 @@ def test_pipeline_stage1_known_attack_rule():
 
 # ── Severity derivation ───────────────────────────────────────────────────────
 
+
 def test_severity_safe():
     from pipeline.inference.predict_classifier import _derive_severity
+
     assert _derive_severity("SAFE", None, 0.0, 0.5, 0.3) == "low"
 
 
 def test_severity_known_attack_high():
     from pipeline.inference.predict_classifier import _derive_severity
+
     assert _derive_severity("KNOWN_ATTACK", 0.9, 0.0, 0.5, 0.3) == "high"
 
 
 def test_severity_known_attack_medium():
     from pipeline.inference.predict_classifier import _derive_severity
+
     assert _derive_severity("KNOWN_ATTACK", 0.6, 0.0, 0.5, 0.3) == "medium"
 
 
 def test_severity_novel_attack_critical():
     from pipeline.inference.predict_classifier import _derive_severity
+
     # ae_score (0.6) > novel_critical_threshold (0.3) → critical
     assert _derive_severity("NOVEL_ATTACK", None, 0.6, 0.5, 0.3) == "critical"
 
 
 def test_severity_novel_attack_high():
     from pipeline.inference.predict_classifier import _derive_severity
+
     # ae_score (0.4) ≤ novel_critical_threshold (0.5) → high
     assert _derive_severity("NOVEL_ATTACK", None, 0.4, 0.3, 0.5) == "high"
 
 
 # ── API endpoint tests ────────────────────────────────────────────────────────
+
 
 async def test_batch_predict_409_no_active_model(client: AsyncClient):
     with patch("api.http.routers.predict.ModelStore") as mock_store:
@@ -236,8 +256,10 @@ async def test_batch_predict_413_oversized(client: AsyncClient):
 async def test_batch_predict_sync_returns_200(client: AsyncClient):
     bundle = _make_bundle()
     # Patch both ModelStore and bulk_insert_alerts
-    with patch("api.http.routers.predict.ModelStore") as mock_store, \
-         patch("api.http.routers.predict.alerts_dao.bulk_insert_alerts") as mock_insert:
+    with (
+        patch("api.http.routers.predict.ModelStore") as mock_store,
+        patch("api.http.routers.predict.alerts_dao.bulk_insert_alerts") as mock_insert,
+    ):
         mock_store.get.return_value.get_active.return_value = bundle
 
         import json
@@ -246,10 +268,17 @@ async def test_batch_predict_sync_returns_200(client: AsyncClient):
         from db.models import Alert
 
         fake_alert = Alert(
-            id=1, flow_id="0", consensus="KNOWN_ATTACK", severity="high",
-            predicted_label=1, classifier_confidence=0.9, ae_score=0.1,
-            ae_threshold=0.5, top_features_json=json.dumps([]),
-            analyst_verdict=None, feedback_at=None,
+            id=1,
+            flow_id="0",
+            consensus="KNOWN_ATTACK",
+            severity="high",
+            predicted_label=1,
+            classifier_confidence=0.9,
+            ae_score=0.1,
+            ae_threshold=0.5,
+            top_features_json=json.dumps([]),
+            analyst_verdict=None,
+            feedback_at=None,
             timestamp=datetime.now(UTC),
         )
         mock_insert.return_value = [fake_alert]
@@ -281,6 +310,7 @@ async def test_predict_job_results_409_not_done(client: AsyncClient):
     import threading
 
     from api.http import jobs as _jobs
+
     barrier = threading.Event()
 
     def _slow(*args):

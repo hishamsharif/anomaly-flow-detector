@@ -15,7 +15,8 @@ from pipeline.store import ModelStore
 
 
 def _apply_saved_transforms(df, bundle) -> tuple[np.ndarray, np.ndarray]:
-    """Apply saved masks + detector_scaler + outlier clip to raw DataFrame. Returns (X_scaled, y)."""
+    """Apply saved masks + detector_scaler + outlier clip to raw DataFrame.
+    Returns (X_scaled, y)."""
     feature_cols = [c for c in df.columns if c != "label"]
     X_raw = df[feature_cols].values.astype(np.float32)
     y = df["label"].values
@@ -27,6 +28,7 @@ def _apply_saved_transforms(df, bundle) -> tuple[np.ndarray, np.ndarray]:
         )
 
     import numpy as _np
+
     X_v = X_raw[:, bundle.variance_mask]
     X_vc = X_v[:, bundle.corr_mask]
     X_vcs = X_vc[:, bundle.selector_mask]
@@ -63,8 +65,8 @@ def run_ae_fine_tune(
         emit("progress", "Loading dataset and applying saved transforms …")
         train_df, val_df, test_df = load_dataset(settings.bundled_dataset_dir)
         X_train_scaled, y_train = _apply_saved_transforms(train_df, bundle)
-        X_val_scaled,   y_val   = _apply_saved_transforms(val_df, bundle)
-        X_test_scaled,  y_test  = _apply_saved_transforms(test_df, bundle)
+        X_val_scaled, y_val = _apply_saved_transforms(val_df, bundle)
+        X_test_scaled, y_test = _apply_saved_transforms(test_df, bundle)
         emit("step", "25")
 
         # 5. Build replay buffer: historical benign rows + analyst-confirmed SAFE flows (HITL)
@@ -73,20 +75,34 @@ def run_ae_fine_tune(
         X_train_benign = X_train_scaled[benign_train_mask]
         rng = np.random.default_rng(42)
         n_replay = max(1, int(len(X_train_benign) * settings.ae_replay_buffer_fraction))
-        idx = rng.choice(len(X_train_benign), size=min(n_replay, len(X_train_benign)), replace=False)
+        idx = rng.choice(
+            len(X_train_benign), size=min(n_replay, len(X_train_benign)), replace=False
+        )
         X_replay = X_train_benign[idx]
 
-        # Extend with analyst-confirmed benign flows passed in from the router (HITL differentiator).
-        # features_json stores post-filter feature dicts keyed by bundle.feature_names.
+        # Extend with analyst-confirmed benign flows passed in from the router
+        # (HITL differentiator). features_json stores post-filter feature dicts
+        # keyed by bundle.feature_names.
         if analyst_flows:
             try:
                 X_analyst_raw = np.array(
-                    [[flow.get(name, 0.0) for name in bundle.feature_names] for flow in analyst_flows],
+                    [
+                        [flow.get(name, 0.0) for name in bundle.feature_names]
+                        for flow in analyst_flows
+                    ],
                     dtype=np.float32,
                 )
-                X_analyst_scaled = np.clip(bundle.detector_scaler.transform(X_analyst_raw), -bundle.ae_outlier_clip_sigma, bundle.ae_outlier_clip_sigma)
+                X_analyst_scaled = np.clip(
+                    bundle.detector_scaler.transform(X_analyst_raw),
+                    -bundle.ae_outlier_clip_sigma,
+                    bundle.ae_outlier_clip_sigma,
+                )
                 X_replay = np.vstack([X_replay, X_analyst_scaled])
-                emit("progress", f"  HITL: added {len(X_analyst_scaled)} analyst-confirmed benign flows to replay buffer.")
+                emit(
+                    "progress",
+                    f"  HITL: added {len(X_analyst_scaled)} analyst-confirmed benign flows"
+                    " to replay buffer.",
+                )
             except Exception as exc:
                 # Analyst data is advisory — never block fine-tune on it
                 emit("progress", f"  HITL: skipped analyst flows ({exc})")
@@ -101,7 +117,9 @@ def run_ae_fine_tune(
         emit("progress", "Recalibrating AE threshold on val-benign …")
         benign_val_mask = y_val == 0
         X_val_benign = X_val_scaled[benign_val_mask] if benign_val_mask.any() else X_val_scaled
-        detector.calibrate_threshold(X_val_benign, percentile=settings.ae_anomaly_threshold_percentile)
+        detector.calibrate_threshold(
+            X_val_benign, percentile=settings.ae_anomaly_threshold_percentile
+        )
         novel_critical_threshold = float(np.percentile(detector.score(X_val_benign), 75.0))
         emit("step", "75")
 
@@ -109,10 +127,26 @@ def run_ae_fine_tune(
         emit("progress", "Computing regression gate metrics …")
         benign_test_mask = y_test == 0
         attack_test_mask = y_test == 1
-        scores_test_benign = detector.score(X_test_scaled[benign_test_mask]) if benign_test_mask.any() else np.array([])
-        scores_test_attack = detector.score(X_test_scaled[attack_test_mask]) if attack_test_mask.any() else np.array([])
-        ae_far = float((scores_test_benign > detector.threshold).mean()) if len(scores_test_benign) else 0.0
-        ae_amr = float((scores_test_attack <= detector.threshold).mean()) if len(scores_test_attack) else 0.0
+        scores_test_benign = (
+            detector.score(X_test_scaled[benign_test_mask])
+            if benign_test_mask.any()
+            else np.array([])
+        )
+        scores_test_attack = (
+            detector.score(X_test_scaled[attack_test_mask])
+            if attack_test_mask.any()
+            else np.array([])
+        )
+        ae_far = (
+            float((scores_test_benign > detector.threshold).mean())
+            if len(scores_test_benign)
+            else 0.0
+        )
+        ae_amr = (
+            float((scores_test_attack <= detector.threshold).mean())
+            if len(scores_test_attack)
+            else 0.0
+        )
 
         old_metrics: dict = {}
         prev_meta = Path(prev_artifact_path) / "metadata.json"
@@ -122,9 +156,17 @@ def run_ae_fine_tune(
         old_ae_far = old_metrics.get("ae_far")
         old_ae_amr = old_metrics.get("ae_amr")
         if old_ae_far is not None and (ae_far - old_ae_far) > settings.far_gate_max:
-            emit("progress", f"⚠ Regression gate: FAR {ae_far:.4f} vs {old_ae_far:.4f} (+{ae_far - old_ae_far:.4f}, gate {settings.far_gate_max})")
+            emit(
+                "progress",
+                f"⚠ Regression gate: FAR {ae_far:.4f} vs {old_ae_far:.4f}"
+                f" (+{ae_far - old_ae_far:.4f}, gate {settings.far_gate_max})",
+            )
         if old_ae_amr is not None and (ae_amr - old_ae_amr) > settings.recall_gate_max:
-            emit("progress", f"⚠ Regression gate: AMR {ae_amr:.4f} vs {old_ae_amr:.4f} (+{ae_amr - old_ae_amr:.4f}, gate {settings.recall_gate_max})")
+            emit(
+                "progress",
+                f"⚠ Regression gate: AMR {ae_amr:.4f} vs {old_ae_amr:.4f}"
+                f" (+{ae_amr - old_ae_amr:.4f}, gate {settings.recall_gate_max})",
+            )
         emit("step", "80")
 
         # 9. Assemble metrics
@@ -171,7 +213,9 @@ def run_ae_fine_tune(
             artifact_dir=settings.model_artifact_dir,
             copy_clf_from=prev_artifact_path,
         )
-        sync_update_model_version(db_url, version_id, path=artifact_path, metrics_json=json.dumps(metrics))
+        sync_update_model_version(
+            db_url, version_id, path=artifact_path, metrics_json=json.dumps(metrics)
+        )
         emit("step", "95")
 
         # 12. Auto-promote

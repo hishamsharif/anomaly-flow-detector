@@ -32,7 +32,9 @@ async def start_training(
     db: AsyncSession = Depends(get_db),
 ):
     if body.classifier_type not in CLASSIFIER_REGISTRY:
-        raise HTTPException(status_code=422, detail=f"Unknown classifier_type: {body.classifier_type}")
+        raise HTTPException(
+            status_code=422, detail=f"Unknown classifier_type: {body.classifier_type}"
+        )
     if body.detector_type not in ANOMALY_DETECTOR_REGISTRY:
         raise HTTPException(status_code=422, detail=f"Unknown detector_type: {body.detector_type}")
     if jobs.is_training():
@@ -42,18 +44,27 @@ async def start_training(
     # Resolve device here (ADR-23): training/ must never call torch.cuda.is_available().
     # runtime.manifest caches the CUDA probe result from API startup.
     env = get_host_environment()
-    device = "cuda" if (settings.device == "auto" and env.cuda_available) or settings.device == "cuda" else "cpu"
+    device = (
+        "cuda"
+        if (settings.device == "auto" and env.cuda_available) or settings.device == "cuda"
+        else "cpu"
+    )
 
     prev_path: str | None = None
     if body.mode == "ae_retrain":
         active = await model_versions_dao.get_active_model(db)
         if active is None:
-            raise HTTPException(status_code=409, detail="No active model — run initial training first")
+            raise HTTPException(
+                status_code=409, detail="No active model — run initial training first"
+            )
         eligible = await alerts_dao.get_eligible_verdict_count(db)
         if eligible < settings.fine_tune_k_threshold:
             raise HTTPException(
                 status_code=409,
-                detail=f"Insufficient verdicts: {eligible} of {settings.fine_tune_k_threshold} required",
+                detail=(
+                    f"Insufficient verdicts: {eligible} of"
+                    f" {settings.fine_tune_k_threshold} required"
+                ),
             )
         prev_path = active.path
 
@@ -85,17 +96,35 @@ async def start_training(
         # off to the background thread — keeps training/ free of api/dao imports (SPEC §9).
         analyst_flows = await alerts_dao.async_get_confirmed_benign_features(db)
         jobs.launch_training_job(
-            run_id, body.mode, run_ae_fine_tune,
-            run_id, version.id, version_name,
-            body.classifier_type, body.detector_type,
-            prev_path, settings, _emit, db_url, analyst_flows, device,
+            run_id,
+            body.mode,
+            run_ae_fine_tune,
+            run_id,
+            version.id,
+            version_name,
+            body.classifier_type,
+            body.detector_type,
+            prev_path,
+            settings,
+            _emit,
+            db_url,
+            analyst_flows,
+            device,
         )
     else:
         jobs.launch_training_job(
-            run_id, body.mode, run_initial_training,
-            run_id, version.id, version_name,
-            body.classifier_type, body.detector_type,
-            settings, _emit, db_url, device,
+            run_id,
+            body.mode,
+            run_initial_training,
+            run_id,
+            version.id,
+            version_name,
+            body.classifier_type,
+            body.detector_type,
+            settings,
+            _emit,
+            db_url,
+            device,
         )
 
     return TrainingJobResponse(run_id=run_id)

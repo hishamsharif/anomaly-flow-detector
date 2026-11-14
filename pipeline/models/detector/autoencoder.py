@@ -18,13 +18,18 @@ class _AE(nn.Module):
         # causing the AE to reconstruct benign flows poorly (high MSE) while trivially
         # reconstructing near-zero DDoS flows (low MSE) — inverting the anomaly signal.
         self.encoder = nn.Sequential(
-            nn.Linear(n_features, 256), nn.LeakyReLU(0.1),
-            nn.Linear(256, 128), nn.LeakyReLU(0.1),
-            nn.Linear(128, 64), nn.LeakyReLU(0.1),
+            nn.Linear(n_features, 256),
+            nn.LeakyReLU(0.1),
+            nn.Linear(256, 128),
+            nn.LeakyReLU(0.1),
+            nn.Linear(128, 64),
+            nn.LeakyReLU(0.1),
         )
         self.decoder = nn.Sequential(
-            nn.Linear(64, 128), nn.LeakyReLU(0.1),
-            nn.Linear(128, 256), nn.LeakyReLU(0.1),
+            nn.Linear(64, 128),
+            nn.LeakyReLU(0.1),
+            nn.Linear(128, 256),
+            nn.LeakyReLU(0.1),
             nn.Linear(256, n_features),
         )
 
@@ -138,7 +143,11 @@ class MLPAutoencoder:
         assert self._network is not None, "fit() first"
         Path(path).mkdir(parents=True, exist_ok=True)
         torch.save(
-            {"state_dict": self._network.state_dict(), "n_features": self._n_features, "threshold": self._threshold},
+            {
+                "state_dict": self._network.state_dict(),
+                "n_features": self._n_features,
+                "threshold": self._threshold,
+            },
             Path(path) / "detector.pt",
         )
 

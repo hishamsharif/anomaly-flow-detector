@@ -27,10 +27,15 @@ def run_feature_engineering(
     test_df: pd.DataFrame,
     settings,
 ) -> tuple[
-    np.ndarray, np.ndarray,   # X_train_classifier, X_train_detector
-    np.ndarray, np.ndarray,   # X_val_classifier,   X_val_detector
-    np.ndarray, np.ndarray,   # X_test_classifier,  X_test_detector
-    np.ndarray, np.ndarray, np.ndarray,  # y_train, y_val, y_test
+    np.ndarray,
+    np.ndarray,  # X_train_classifier, X_train_detector
+    np.ndarray,
+    np.ndarray,  # X_val_classifier,   X_val_detector
+    np.ndarray,
+    np.ndarray,  # X_test_classifier,  X_test_detector
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,  # y_train, y_val, y_test
     FeatureEngResult,
 ]:
     """Apply feature engineering steps and return scaled matrices for each split.
@@ -41,9 +46,7 @@ def run_feature_engineering(
     """
     # Intersect columns across all three splits to handle schema differences
     # between dataset files (e.g. one stub file missing a column).
-    shared_cols = (
-        set(train_df.columns) & set(val_df.columns) & set(test_df.columns)
-    ) - {"label"}
+    shared_cols = (set(train_df.columns) & set(val_df.columns) & set(test_df.columns)) - {"label"}
     feature_cols = [c for c in train_df.columns if c in shared_cols]
 
     X_train = train_df[feature_cols].values.astype(np.float32)
@@ -65,21 +68,31 @@ def run_feature_engineering(
     X_train = correlation_filter.fit_transform(X_train, names_after_variance)
     X_val = correlation_filter.transform(X_val)
     X_test = correlation_filter.transform(X_test)
-    names_after_correlation = [n for n, keep in zip(names_after_variance, correlation_filter.mask) if keep]
+    names_after_correlation = [
+        n for n, keep in zip(names_after_variance, correlation_filter.mask) if keep
+    ]
 
-    # Step 3 — SMOTE on train only (balances attack classes; val/test untouched for realistic evaluation)
+    # Step 3 — SMOTE on train only (balances attack classes;
+    # val/test untouched for realistic evaluation)
     if len(np.unique(y_train)) > 1:
         try:
             from imblearn.over_sampling import SMOTE
+
             counts = np.bincount(y_train.astype(int))
-            sampling = {cls: min(cnt, settings.smote_max_per_class) for cls, cnt in enumerate(counts) if cnt > 0}
+            sampling = {
+                cls: min(cnt, settings.smote_max_per_class)
+                for cls, cnt in enumerate(counts)
+                if cnt > 0
+            }
             sm = SMOTE(sampling_strategy=sampling, random_state=42)
             X_train, y_train = sm.fit_resample(X_train, y_train)
         except Exception:
             pass  # SMOTE fails on very small datasets; proceed without
 
     # Step 4 — optional supervised feature selection (fit on train)
-    feature_selector = FeatureSelector(k=settings.feature_selection_k, method=settings.feature_selection_method)
+    feature_selector = FeatureSelector(
+        k=settings.feature_selection_k, method=settings.feature_selection_method
+    )
     X_train = feature_selector.fit_transform(X_train, y_train, names_after_correlation)
     X_val = feature_selector.transform(X_val)
     X_test = feature_selector.transform(X_test)
@@ -88,8 +101,8 @@ def run_feature_engineering(
     # Step 5a — classifier scaler: StandardScaler fit on full train (all classes)
     classifier_scaler = StandardScaler()
     X_train_classifier = classifier_scaler.fit_transform(X_train)
-    X_val_classifier   = classifier_scaler.transform(X_val)
-    X_test_classifier  = classifier_scaler.transform(X_test)
+    X_val_classifier = classifier_scaler.transform(X_val)
+    X_test_classifier = classifier_scaler.transform(X_test)
 
     # Step 5b — detector scaler: StandardScaler fit on benign-only train
     # AE learns the distribution of normal traffic; fitting on attack rows would bias the scaler.
@@ -99,8 +112,8 @@ def run_feature_engineering(
     detector_scaler.fit(X_train_benign)
     _clip = getattr(settings, "ae_outlier_clip_sigma", 5.0)
     X_train_detector = np.clip(detector_scaler.transform(X_train_benign), -_clip, _clip)
-    X_val_detector   = np.clip(detector_scaler.transform(X_val),          -_clip, _clip)
-    X_test_detector  = np.clip(detector_scaler.transform(X_test),         -_clip, _clip)
+    X_val_detector = np.clip(detector_scaler.transform(X_val), -_clip, _clip)
+    X_test_detector = np.clip(detector_scaler.transform(X_test), -_clip, _clip)
 
     result = FeatureEngResult(
         variance_mask=variance_filter.mask,
@@ -112,9 +125,14 @@ def run_feature_engineering(
     )
 
     return (
-        X_train_classifier, X_train_detector,
-        X_val_classifier,   X_val_detector,
-        X_test_classifier,  X_test_detector,
-        y_train, y_val, y_test,
+        X_train_classifier,
+        X_train_detector,
+        X_val_classifier,
+        X_val_detector,
+        X_test_classifier,
+        X_test_detector,
+        y_train,
+        y_val,
+        y_test,
         result,
     )

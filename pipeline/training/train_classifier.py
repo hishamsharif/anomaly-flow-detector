@@ -38,10 +38,15 @@ def run_initial_training(
         # 2. Feature engineering
         emit("progress", "Running feature engineering …")
         (
-            X_train_classifier, X_train_detector,
-            X_val_classifier,   X_val_detector,
-            X_test_classifier,  X_test_detector,
-            y_train, y_val, y_test,
+            X_train_classifier,
+            X_train_detector,
+            X_val_classifier,
+            X_val_detector,
+            X_test_classifier,
+            X_test_detector,
+            y_train,
+            y_val,
+            y_test,
             feat_result,
         ) = run_feature_engineering(train_df, val_df, test_df, settings)
         emit("step", "30")
@@ -61,8 +66,11 @@ def run_initial_training(
         detector.fit(X_train_detector)
         benign_val_mask = y_val == 0
         X_val_benign = X_val_detector[benign_val_mask] if benign_val_mask.any() else X_val_detector
-        detector.calibrate_threshold(X_val_benign, percentile=settings.ae_anomaly_threshold_percentile)
-        # p75 of val-benign reconstruction errors → severity threshold for NOVEL_ATTACK (critical vs high, §3.1)
+        detector.calibrate_threshold(
+            X_val_benign, percentile=settings.ae_anomaly_threshold_percentile
+        )
+        # p75 of val-benign reconstruction errors → severity threshold for NOVEL_ATTACK
+        # (critical vs high, §3.1)
         novel_critical_threshold = float(np.percentile(detector.score(X_val_benign), 75.0))
         emit("step", "80")
 
@@ -71,7 +79,9 @@ def run_initial_training(
         test_labels, test_confidences = classifier.predict(X_test_classifier)
 
         f1 = float(f1_score(y_test, test_labels, average="weighted", zero_division=0))
-        pr_auc = float(average_precision_score(y_test, test_confidences) if len(np.unique(y_test)) > 1 else 0.0)
+        pr_auc = float(
+            average_precision_score(y_test, test_confidences) if len(np.unique(y_test)) > 1 else 0.0
+        )
 
         # FAR = FP / (FP + TN) on BENIGN rows — false alarm rate
         benign_test = y_test == 0
@@ -91,7 +101,9 @@ def run_initial_training(
         else:
             amr = 0.0
 
-        known_attack_f1 = float(f1_score(y_test, test_labels, pos_label=1, average="binary", zero_division=0))
+        known_attack_f1 = float(
+            f1_score(y_test, test_labels, pos_label=1, average="binary", zero_division=0)
+        )
 
         metrics = {
             "classifier_type": classifier_type,
@@ -124,7 +136,9 @@ def run_initial_training(
             metrics=metrics,
             artifact_dir=settings.model_artifact_dir,
         )
-        sync_update_model_version(db_url, version_id, path=artifact_path, metrics_json=json.dumps(metrics))
+        sync_update_model_version(
+            db_url, version_id, path=artifact_path, metrics_json=json.dumps(metrics)
+        )
         emit("step", "95")
 
         # 7. Auto-promote to active

@@ -13,7 +13,9 @@ class CorrelationFilter:
         feature_df = pd.DataFrame(X, columns=feature_names)
         corr_matrix = feature_df.corr(method="pearson").abs()
         upper_triangle = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
-        features_to_drop = {col for col in upper_triangle.columns if any(upper_triangle[col] > self._threshold)}
+        features_to_drop = {
+            col for col in upper_triangle.columns if any(upper_triangle[col] > self._threshold)
+        }
         features_to_keep = [n for n in feature_names if n not in features_to_drop]
         self._mask = np.array([n in features_to_keep for n in feature_names], dtype=bool)
         return self

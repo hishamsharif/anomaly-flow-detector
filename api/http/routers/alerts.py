@@ -41,7 +41,9 @@ async def submit_verdict(
 ):
     valid_verdicts = {"confirmed", "override", "uncertain", "escalate"}
     if body.verdict not in valid_verdicts:
-        raise HTTPException(status_code=422, detail=f"verdict must be one of {sorted(valid_verdicts)}")
+        raise HTTPException(
+            status_code=422, detail=f"verdict must be one of {sorted(valid_verdicts)}"
+        )
     if body.verdict == "override" and not body.label:
         raise HTTPException(status_code=422, detail="label is required when verdict = override")
 
@@ -49,7 +51,9 @@ async def submit_verdict(
     if alert is None:
         raise HTTPException(status_code=404, detail="Alert not found")
     if alert.analyst_verdict is not None:
-        raise HTTPException(status_code=409, detail="Verdict already set — immutable after first submission (I2)")
+        raise HTTPException(
+            status_code=409, detail="Verdict already set — immutable after first submission (I2)"
+        )
 
     alert.analyst_verdict = body.verdict
     alert.feedback_at = datetime.now(UTC)

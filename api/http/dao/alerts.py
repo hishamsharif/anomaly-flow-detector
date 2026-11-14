@@ -4,6 +4,7 @@ Async helpers use an AsyncSession injected by FastAPI's Depends(get_db).
 Sync helpers (prefixed sync_) run in background threads and must not hold
 an async session.
 """
+
 from __future__ import annotations
 
 import json
@@ -20,6 +21,7 @@ def _sync_engine(db_url: str):
 
 
 # ── Sync helpers (background threads) ─────────────────────────────────────────
+
 
 def sync_insert_alerts(db_url: str, alert_dicts: list[dict]) -> list[int]:
     """Sync helper for background predict threads — returns inserted IDs."""
@@ -43,15 +45,19 @@ def sync_get_confirmed_benign_features(db_url: str) -> list[dict] | None:
     """
     engine = _sync_engine(db_url)
     with Session(engine) as session:
-        rows = session.execute(
-            select(Alert.features_json).where(
-                or_(
-                    and_(Alert.analyst_verdict == "confirmed", Alert.consensus == "SAFE"),
-                    Alert.analyst_verdict == "override",
-                ),
-                Alert.features_json.is_not(None),
+        rows = (
+            session.execute(
+                select(Alert.features_json).where(
+                    or_(
+                        and_(Alert.analyst_verdict == "confirmed", Alert.consensus == "SAFE"),
+                        Alert.analyst_verdict == "override",
+                    ),
+                    Alert.features_json.is_not(None),
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
     engine.dispose()
     result = []
     for fj in rows:
@@ -64,17 +70,25 @@ def sync_get_confirmed_benign_features(db_url: str) -> list[dict] | None:
 
 # ── Async helpers (FastAPI routers) ───────────────────────────────────────────
 
+
 async def async_get_confirmed_benign_features(db: AsyncSession) -> list[dict] | None:
-    """Async counterpart — called from the training router before dispatching the fine-tune thread."""
-    rows = (await db.execute(
-        select(Alert.features_json).where(
-            or_(
-                and_(Alert.analyst_verdict == "confirmed", Alert.consensus == "SAFE"),
-                Alert.analyst_verdict == "override",
-            ),
-            Alert.features_json.is_not(None),
+    """Async counterpart — called from the training router before dispatching
+    the fine-tune thread."""
+    rows = (
+        (
+            await db.execute(
+                select(Alert.features_json).where(
+                    or_(
+                        and_(Alert.analyst_verdict == "confirmed", Alert.consensus == "SAFE"),
+                        Alert.analyst_verdict == "override",
+                    ),
+                    Alert.features_json.is_not(None),
+                )
+            )
         )
-    )).scalars().all()
+        .scalars()
+        .all()
+    )
     result = []
     for fj in rows:
         try:
@@ -126,8 +140,8 @@ async def get_alert_by_id(db: AsyncSession, alert_id: int) -> Alert | None:
 
 async def get_eligible_verdict_count(db: AsyncSession) -> int:
     result = await db.execute(
-        select(func.count()).select_from(Alert).where(
-            Alert.analyst_verdict.in_(["confirmed", "override"])
-        )
+        select(func.count())
+        .select_from(Alert)
+        .where(Alert.analyst_verdict.in_(["confirmed", "override"]))
     )
     return result.scalar_one()

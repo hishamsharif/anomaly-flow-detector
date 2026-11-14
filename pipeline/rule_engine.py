@@ -24,9 +24,7 @@ class RuleEngine:
     port_verdict_rules: dict[int, str] = field(default_factory=dict)
 
     # Destination ports that are trusted management services (→ SAFE).
-    allowlisted_ports: frozenset[int] = field(
-        default_factory=lambda: frozenset()
-    )
+    allowlisted_ports: frozenset[int] = field(default_factory=lambda: frozenset())
 
     def check(self, flow: dict[str, Any]) -> str | None:
         """
@@ -63,12 +61,14 @@ class RuleEngine:
         """
         return cls(
             port_verdict_rules={
-                21:   "KNOWN_ATTACK",   # FTP brute-force (FTP-Patator in CIC-IDS2017)
-                22:   "KNOWN_ATTACK",   # SSH brute-force (SSH-Patator in CIC-IDS2017)
-                4444: "KNOWN_ATTACK",   # Metasploit reverse shell (illustrative)
+                21: "KNOWN_ATTACK",  # FTP brute-force (FTP-Patator in CIC-IDS2017)
+                22: "KNOWN_ATTACK",  # SSH brute-force (SSH-Patator in CIC-IDS2017)
+                4444: "KNOWN_ATTACK",  # Metasploit reverse shell (illustrative)
             },
-            allowlisted_ports=frozenset({
-                123,   # NTP — trusted clock-sync traffic
-                161,   # SNMP — network management
-            }),
+            allowlisted_ports=frozenset(
+                {
+                    123,  # NTP — trusted clock-sync traffic
+                    161,  # SNMP — network management
+                }
+            ),
         )

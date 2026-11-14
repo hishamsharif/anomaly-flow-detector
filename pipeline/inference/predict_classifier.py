@@ -11,8 +11,8 @@ from pipeline.store import ArtifactBundle
 @dataclass
 class FlowResult:
     flow_id: str
-    consensus: str           # SAFE | KNOWN_ATTACK | NOVEL_ATTACK
-    severity: str            # low | medium | high | critical
+    consensus: str  # SAFE | KNOWN_ATTACK | NOVEL_ATTACK
+    severity: str  # low | medium | high | critical
     predicted_label: int | None
     classifier_confidence: float | None
     ae_score: float
@@ -108,8 +108,11 @@ def run_batch_inference(
                 flow_id=str(i),
                 consensus=rule_verdict,
                 severity=_derive_severity(
-                    rule_verdict, None, 0.0,
-                    bundle.ae_threshold, bundle.novel_critical_threshold,
+                    rule_verdict,
+                    None,
+                    0.0,
+                    bundle.ae_threshold,
+                    bundle.novel_critical_threshold,
                 ),
                 predicted_label=None,
                 classifier_confidence=None,
@@ -141,8 +144,8 @@ def run_batch_inference(
     # ── Stage 3: MLP-AE anomaly detector ──────────────────────────────────────
     _clip = bundle.ae_outlier_clip_sigma
     X_det = np.clip(bundle.detector_scaler.transform(X_raw), -_clip, _clip)
-    ae_scores = bundle.ae.score(X_det)                        # (n_ambiguous,)
-    ae_per_feature = bundle.ae.score_per_feature(X_det)       # (n_ambiguous, n_features)
+    ae_scores = bundle.ae.score(X_det)  # (n_ambiguous,)
+    ae_per_feature = bundle.ae.score_per_feature(X_det)  # (n_ambiguous, n_features)
 
     # ── Assemble results ───────────────────────────────────────────────────────
     for batch_idx, flow_idx in enumerate(ambiguous):
@@ -166,8 +169,11 @@ def run_batch_inference(
         )
 
         severity = _derive_severity(
-            consensus, conf, ae_score,
-            bundle.ae_threshold, bundle.novel_critical_threshold,
+            consensus,
+            conf,
+            ae_score,
+            bundle.ae_threshold,
+            bundle.novel_critical_threshold,
         )
 
         results[flow_idx] = FlowResult(

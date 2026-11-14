@@ -4,6 +4,7 @@ PCAP adapter tests.
 Skipped automatically when nfstream is not installed.
 The fixture PCAP is built from raw struct bytes — no scapy dependency.
 """
+
 from __future__ import annotations
 
 import struct
@@ -16,11 +17,12 @@ import pytest
 _PCAP_GLOBAL_HDR = struct.pack(
     "<IHHiIII",
     0xA1B2C3D4,  # magic (little-endian)
-    2, 4,        # version major, minor
-    0,           # timezone
-    0,           # sig figs
-    65535,       # snaplen
-    1,           # link type: Ethernet
+    2,
+    4,  # version major, minor
+    0,  # timezone
+    0,  # sig figs
+    65535,  # snaplen
+    1,  # link type: Ethernet
 )
 
 
@@ -35,7 +37,7 @@ def _eth_ip_tcp(
 ) -> bytes:
     """Build a minimal Ethernet + IP + TCP frame (no data, no valid checksums)."""
     # Ethernet header (14 bytes)
-    eth = bytes([0, 0, 0, 0, 0, 2])   # dst mac
+    eth = bytes([0, 0, 0, 0, 0, 2])  # dst mac
     eth += bytes([0, 0, 0, 0, 0, 1])  # src mac
     eth += struct.pack("!H", 0x0800)  # IPv4
 
@@ -44,19 +46,30 @@ def _eth_ip_tcp(
     #                          TTL, proto, checksum, src, dst
     ip = struct.pack(
         "!BBHHHBBH4s4s",
-        0x45, 0, ip_len,
-        1, 0x4000,
-        64, 6, 0,
-        bytes(src_ip), bytes(dst_ip),
+        0x45,
+        0,
+        ip_len,
+        1,
+        0x4000,
+        64,
+        6,
+        0,
+        bytes(src_ip),
+        bytes(dst_ip),
     )
 
     # TCP header (20 bytes): sport, dport, seq, ack, data_off, flags, win, chk, urg
     tcp = struct.pack(
         "!HHLLBBHHH",
-        src_port, dst_port,
-        seq, ack,
-        0x50, flags,
-        65535, 0, 0,
+        src_port,
+        dst_port,
+        seq,
+        ack,
+        0x50,
+        flags,
+        65535,
+        0,
+        0,
     )
 
     return eth + ip + tcp
@@ -98,6 +111,7 @@ def _build_empty_pcap() -> bytes:
 
 # ── Tests that run without nfstream ──────────────────────────────────────────
 
+
 class TestPcapAdapterNoNfstream:
     """Unit-test the adapter's import-guard path without needing nfstream."""
 
@@ -106,6 +120,7 @@ class TestPcapAdapterNoNfstream:
             import importlib
 
             from pipeline.inference.adapters import pcap_adapter
+
             importlib.reload(pcap_adapter)
 
             valid, rejected = pcap_adapter.parse_pcap(b"dummy", ["Total Fwd Packets"])
@@ -123,6 +138,7 @@ class TestPcapAdapterNoNfstream:
             import importlib
 
             from pipeline.inference.adapters import pcap_adapter
+
             importlib.reload(pcap_adapter)
 
             valid, rejected = pcap_adapter.parse_pcap(b"not-a-pcap", ["Total Fwd Packets"])
@@ -144,6 +160,7 @@ class TestPcapAdapterNoNfstream:
             import importlib
 
             from pipeline.inference.adapters import pcap_adapter
+
             importlib.reload(pcap_adapter)
 
             valid, rejected = pcap_adapter.parse_pcap(_build_empty_pcap(), [])
@@ -168,6 +185,7 @@ class TestPcapAdapterNoNfstream:
             import importlib
 
             from pipeline.inference.adapters import pcap_adapter
+
             importlib.reload(pcap_adapter)
 
             valid, rejected = pcap_adapter.parse_pcap(b"x", ["DOES_NOT_EXIST_XYZ"])
@@ -180,11 +198,13 @@ class TestPcapAdapterNoNfstream:
         """Flow Duration extractor: bidirectional_duration_ms * 1000."""
         import pandas as pd
 
-        row = pd.Series({
-            "bidirectional_duration_ms": 100.0,
-            "src2dst_packets": 3,
-            "dst2src_packets": 2,
-        })
+        row = pd.Series(
+            {
+                "bidirectional_duration_ms": 100.0,
+                "src2dst_packets": 3,
+                "dst2src_packets": 2,
+            }
+        )
         df = pd.DataFrame([row])
 
         mock_nfstream = MagicMock()
@@ -196,6 +216,7 @@ class TestPcapAdapterNoNfstream:
             import importlib
 
             from pipeline.inference.adapters import pcap_adapter
+
             importlib.reload(pcap_adapter)
 
             valid, _ = pcap_adapter.parse_pcap(b"x", ["Flow Duration", "Total Fwd Packets"])
@@ -221,6 +242,7 @@ class TestPcapAdapterNoNfstream:
             import importlib
 
             from pipeline.inference.adapters import pcap_adapter
+
             importlib.reload(pcap_adapter)
 
             valid, _ = pcap_adapter.parse_pcap(b"x", feature_names)
@@ -252,8 +274,12 @@ class TestPcapAdapterIntegration:
 
         pcap = _build_pcap_bytes(n_flows=1, pkts_per_flow=3)
         feature_names = [
-            "Total Fwd Packets", "Total Backward Packets", "Flow Duration",
-            "SYN Flag Count", "ACK Flag Count", "FIN Flag Count",
+            "Total Fwd Packets",
+            "Total Backward Packets",
+            "Flow Duration",
+            "SYN Flag Count",
+            "ACK Flag Count",
+            "FIN Flag Count",
         ]
         valid, _ = parse_pcap(pcap, feature_names)
 

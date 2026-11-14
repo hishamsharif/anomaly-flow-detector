@@ -15,6 +15,7 @@ class HostEnvironment:
 def probe_cuda() -> tuple[bool, str | None]:
     try:
         import torch  # noqa: PLC0415
+
         available = torch.cuda.is_available()
         version = torch.version.cuda if available else None
         return available, version
@@ -48,7 +49,11 @@ def probe_images() -> list[str]:
             timeout=5,
         )
         if result.returncode == 0:
-            return [line for line in result.stdout.strip().splitlines() if line and line != "<none>:<none>"]
+            return [
+                line
+                for line in result.stdout.strip().splitlines()
+                if line and line != "<none>:<none>"
+            ]
         return []
     except Exception:
         return []

@@ -36,7 +36,9 @@ class XGBoostClassifier:
         assert self._xgb_model is not None, "fit() first"
         labels = self._xgb_model.predict(X)
         class_proba = self._xgb_model.predict_proba(X)
-        confidences = class_proba[:, 1]   # P(attack) — correct signal for PR-AUC and confidence threshold
+        confidences = class_proba[
+            :, 1
+        ]  # P(attack) — correct signal for PR-AUC and confidence threshold
         return labels, confidences
 
     def save(self, path: str) -> None:

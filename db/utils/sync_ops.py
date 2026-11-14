@@ -7,6 +7,7 @@ web layer satisfies SPEC §9.
 SQLAlchemy Core table reflection is used so this module has zero ORM / api
 dependencies: it reads the live schema from the DB file at call time.
 """
+
 from __future__ import annotations
 
 from sqlalchemy import MetaData, create_engine, update

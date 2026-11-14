@@ -1,4 +1,5 @@
 """Slice 5 tests — AE fine-tune pipeline + API endpoints."""
+
 from __future__ import annotations
 
 import json
@@ -16,10 +17,12 @@ from db.models import Alert, ModelVersion
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def low_threshold():
     """Temporarily set fine_tune_k_threshold to 2 for speed."""
     from config.settings import get_settings
+
     s = get_settings()
     old = s.fine_tune_k_threshold
     object.__setattr__(s, "fine_tune_k_threshold", 2)
@@ -44,6 +47,7 @@ def _alert_dict(**kwargs) -> dict:
 
 async def _insert_alert(client: AsyncClient, **kwargs) -> Alert:
     from api.http.dao.db_conn import AsyncSessionLocal
+
     async with AsyncSessionLocal() as db:
         a = Alert(**_alert_dict(**kwargs))
         db.add(a)
@@ -54,6 +58,7 @@ async def _insert_alert(client: AsyncClient, **kwargs) -> Alert:
 
 async def _insert_model(path: str | None = None, status: str = "active") -> int:
     from api.http.dao.db_conn import AsyncSessionLocal
+
     async with AsyncSessionLocal() as db:
         m = ModelVersion(
             name="v1",
@@ -70,8 +75,10 @@ async def _insert_model(path: str | None = None, status: str = "active") -> int:
 
 # ── Unit: MLPAutoencoder.fine_tune ────────────────────────────────────────────
 
+
 def test_mlp_ae_fine_tune_runs():
     from pipeline.models.detector.autoencoder import MLPAutoencoder
+
     X = np.random.rand(80, 20).astype(np.float32)
     ae = MLPAutoencoder(device="cpu", epochs=4, batch_size=16)
     ae.fit(X)
@@ -88,6 +95,7 @@ def test_mlp_ae_fine_tune_runs():
 
 def test_mlp_ae_fine_tune_save_load(tmp_path):
     from pipeline.models.detector.autoencoder import MLPAutoencoder
+
     X = np.random.rand(60, 10).astype(np.float32)
     ae = MLPAutoencoder(device="cpu", epochs=2, batch_size=16)
     ae.fit(X)
@@ -102,6 +110,7 @@ def test_mlp_ae_fine_tune_save_load(tmp_path):
 
 
 # ── Unit: save_artifacts copy_clf_from ────────────────────────────────────────
+
 
 def test_save_artifacts_copy_clf_from(tmp_path):
     from sklearn.preprocessing import StandardScaler
@@ -148,12 +157,16 @@ def test_save_artifacts_copy_clf_from(tmp_path):
 
 # ── API: ae_retrain 409 guards ────────────────────────────────────────────────
 
+
 async def test_ae_retrain_409_no_active_model(client: AsyncClient):
-    res = await client.post("/api/training/start", json={
-        "classifier_type": "xgboost",
-        "detector_type": "mlp_ae",
-        "mode": "ae_retrain",
-    })
+    res = await client.post(
+        "/api/training/start",
+        json={
+            "classifier_type": "xgboost",
+            "detector_type": "mlp_ae",
+            "mode": "ae_retrain",
+        },
+    )
     assert res.status_code == 409
     assert "No active model" in res.json()["detail"]
 
@@ -164,11 +177,14 @@ async def test_ae_retrain_409_insufficient_verdicts(client: AsyncClient, low_thr
     # Insert only 1 confirmed alert (below threshold of 2)
     await _insert_alert(client, analyst_verdict="confirmed")
 
-    res = await client.post("/api/training/start", json={
-        "classifier_type": "xgboost",
-        "detector_type": "mlp_ae",
-        "mode": "ae_retrain",
-    })
+    res = await client.post(
+        "/api/training/start",
+        json={
+            "classifier_type": "xgboost",
+            "detector_type": "mlp_ae",
+            "mode": "ae_retrain",
+        },
+    )
     assert res.status_code == 409
     assert "Insufficient verdicts" in res.json()["detail"]
 
@@ -181,24 +197,30 @@ async def test_ae_retrain_202_when_unlocked(client: AsyncClient, low_threshold, 
     await _insert_alert(client, analyst_verdict="confirmed")
 
     with patch("api.http.routers.training.run_ae_fine_tune") as mock_fn:
+
         def _immediate(*args):
             # find emit callable — it's the second-to-last positional arg
             emit = args[-2]
             emit("step", "100")
             emit("done", "done")
+
         mock_fn.side_effect = _immediate
 
-        res = await client.post("/api/training/start", json={
-            "classifier_type": "xgboost",
-            "detector_type": "mlp_ae",
-            "mode": "ae_retrain",
-        })
+        res = await client.post(
+            "/api/training/start",
+            json={
+                "classifier_type": "xgboost",
+                "detector_type": "mlp_ae",
+                "mode": "ae_retrain",
+            },
+        )
 
     assert res.status_code == 202
     assert "run_id" in res.json()
 
 
 # ── API: promote endpoint ──────────────────────────────────────────────────────
+
 
 async def test_promote_404(client: AsyncClient):
     res = await client.post("/api/models/99999/promote")

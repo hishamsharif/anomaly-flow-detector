@@ -7,6 +7,7 @@ Creates a ModelVersion row, runs the classifier + AE pipeline, and marks the
 resulting version as active.  Device is resolved from settings (DEVICE env var)
 the same way the API router does (ADR-23).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -52,6 +53,7 @@ def _create_version_sync(db_url: str, run_id: str, clf_type: str, det_type: str)
         det_label = DETECTOR_LABELS.get(det_type, det_type)
         version_name = f"{clf_label} + {det_label} — v{version_id}"
         from sqlalchemy import update
+
         conn.execute(update(tbl).where(tbl.c.id == version_id).values(name=version_name))
         conn.commit()
 
@@ -73,6 +75,7 @@ def main() -> None:
     # Resolve device (ADR-23): probe CUDA here at the entry point, not inside training/
     try:
         import torch
+
         cuda_ok = torch.cuda.is_available()
     except Exception:
         cuda_ok = False
@@ -92,10 +95,15 @@ def main() -> None:
     if not db_path.exists():
         db_path.parent.mkdir(parents=True, exist_ok=True)
         db_path.touch()
-        log.warning("data/afd.db not found — created empty file; run 'make migrate' first if schema is missing")
+        log.warning(
+            "data/afd.db not found — created empty file;"
+            " run 'make migrate' first if schema is missing"
+        )
 
     run_id = str(uuid.uuid4())
-    version_id, version_name = _create_version_sync(settings.database_url, run_id, args.clf, args.det)
+    version_id, version_name = _create_version_sync(
+        settings.database_url, run_id, args.clf, args.det
+    )
 
     log.info("Run ID   : %s", run_id)
     log.info("Version  : %s (id=%d)", version_name, version_id)
@@ -105,9 +113,15 @@ def main() -> None:
         log.info("[%s] %s", event, data)
 
     run_initial_training(
-        run_id, version_id, version_name,
-        args.clf, args.det,
-        settings, emit, settings.database_url, device,
+        run_id,
+        version_id,
+        version_name,
+        args.clf,
+        args.det,
+        settings,
+        emit,
+        settings.database_url,
+        device,
     )
 
     log.info("")
