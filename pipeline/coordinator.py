@@ -5,8 +5,6 @@ The on_progress callback is the polymorphic seam between HTTP (SSE) and offline 
 """
 from __future__ import annotations
 
-from typing import Callable
-
 # TODO: implement PipelineCoordinator by extracting orchestration logic from
 #       api/http/routers/training.py (HTTP path) and api/offline/train.py (CLI path).
 #

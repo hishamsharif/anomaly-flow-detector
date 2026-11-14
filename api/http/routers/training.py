@@ -6,17 +6,22 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config.settings import get_settings
 from api.http import jobs
-from api.http.dao.db_conn import get_db
-from runtime.manifest import get_host_environment
 from api.http.dao import alerts as alerts_dao
 from api.http.dao import model_versions as model_versions_dao
+from api.http.dao.db_conn import get_db
 from api.http.schemas import TrainingJobResponse, TrainingStartRequest, TrainingStatusResponse
-from pipeline.models.registry import ANOMALY_DETECTOR_REGISTRY, CLASSIFIER_LABELS, CLASSIFIER_REGISTRY, DETECTOR_LABELS
+from config.settings import get_settings
 from db.models import ModelVersion
-from pipeline.training.train_detector import run_ae_fine_tune
+from pipeline.models.registry import (
+    ANOMALY_DETECTOR_REGISTRY,
+    CLASSIFIER_LABELS,
+    CLASSIFIER_REGISTRY,
+    DETECTOR_LABELS,
+)
 from pipeline.training.train_classifier import run_initial_training
+from pipeline.training.train_detector import run_ae_fine_tune
+from runtime.manifest import get_host_environment
 
 router = APIRouter(prefix="/api/training", tags=["training"])
 

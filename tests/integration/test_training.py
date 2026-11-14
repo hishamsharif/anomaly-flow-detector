@@ -1,16 +1,12 @@
 """Slice 2 tests — component isolation + API endpoint shape."""
 from __future__ import annotations
 
-import json
-import shutil
 from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
-import pytest
 from httpx import AsyncClient
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -167,8 +163,8 @@ async def test_training_start_returns_202(client: AsyncClient):
 
 
 async def test_training_start_409_when_already_training(client: AsyncClient):
-    import threading, time
-    from api.http import jobs
+    import threading
+
 
     barrier = threading.Event()
 

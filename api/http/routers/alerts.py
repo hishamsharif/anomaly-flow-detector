@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config.settings import get_settings
-from api.http.dao.db_conn import get_db
 from api.http.dao import alerts as alerts_dao
+from api.http.dao.db_conn import get_db
 from api.http.schemas import AlertResponse, PaginatedAlerts, VerdictCountResponse, VerdictRequest
+from config.settings import get_settings
 
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
@@ -52,7 +52,7 @@ async def submit_verdict(
         raise HTTPException(status_code=409, detail="Verdict already set — immutable after first submission (I2)")
 
     alert.analyst_verdict = body.verdict
-    alert.feedback_at = datetime.now(timezone.utc)
+    alert.feedback_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(alert)
     return AlertResponse.model_validate(alert)

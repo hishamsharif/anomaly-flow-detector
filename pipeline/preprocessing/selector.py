@@ -11,7 +11,7 @@ class FeatureSelector:
         self._selected_feature_names: list[str] = []
         self._selector = None
 
-    def fit(self, X: np.ndarray, y: np.ndarray, feature_names: list[str] | None = None) -> "FeatureSelector":
+    def fit(self, X: np.ndarray, y: np.ndarray, feature_names: list[str] | None = None) -> FeatureSelector:
         n_features = X.shape[1]
         if self._n_top_features == 0 or self._method == "none":
             self._mask = np.ones(n_features, dtype=bool)

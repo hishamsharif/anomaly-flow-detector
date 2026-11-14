@@ -2,13 +2,13 @@ from pathlib import Path
 
 import pytest
 import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import api.http.dao.db_conn as _session_module
-from db.base import Base
 from api.http.dao.db_conn import get_db
 from api.http.main import app
+from db.base import Base
 
 _TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
 

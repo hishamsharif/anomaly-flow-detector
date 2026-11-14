@@ -13,7 +13,7 @@ import argparse
 import logging
 import sys
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
@@ -42,7 +42,7 @@ def _create_version_sync(db_url: str, run_id: str, clf_type: str, det_type: str)
                 classifier_type=clf_type,
                 detector_type=det_type,
                 status="training",
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
         )
         conn.commit()

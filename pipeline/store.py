@@ -26,11 +26,11 @@ class ArtifactBundle:
 
 
 class ModelStore:
-    _instance: "ModelStore | None" = None
+    _instance: ModelStore | None = None
     _active: ArtifactBundle | None = None
 
     @classmethod
-    def get(cls) -> "ModelStore":
+    def get(cls) -> ModelStore:
         if cls._instance is None:
             cls._instance = ModelStore()
         return cls._instance

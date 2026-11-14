@@ -3,15 +3,16 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
+from collections.abc import AsyncGenerator, Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, AsyncGenerator, Callable
+from datetime import UTC, datetime
+from typing import Any
 
 _training_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="training")
 _predict_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="predict")
-_active_jobs: dict[str, "_Job"] = {}
-_predict_jobs: dict[str, "_PredictJob"] = {}
+_active_jobs: dict[str, _Job] = {}
+_predict_jobs: dict[str, _PredictJob] = {}
 _jobs_lock = threading.Lock()
 
 
@@ -39,7 +40,7 @@ def is_training() -> bool:
 
 
 def launch_training_job(run_id: str, mode: str, fn: Callable, *args) -> None:
-    job = _Job(run_id=run_id, mode=mode, started_at=datetime.now(timezone.utc))
+    job = _Job(run_id=run_id, mode=mode, started_at=datetime.now(UTC))
     with _jobs_lock:
         _active_jobs[run_id] = job
     _training_executor.submit(_execute_training_job, run_id, fn, *args)

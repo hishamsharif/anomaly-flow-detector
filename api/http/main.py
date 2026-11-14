@@ -4,17 +4,17 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from config.settings import get_settings
-from api.http.dao.db_conn import AsyncSessionLocal
 from api.http.dao import model_versions as model_versions_dao
-from api.http.routers import health
-from api.http.routers import models as models_router
-from api.http.routers import training as training_router
-from api.http.routers import predict as predict_router
-from api.http.routers import alerts as alerts_router
+from api.http.dao.db_conn import AsyncSessionLocal
 from api.http.routers import about as about_router
+from api.http.routers import alerts as alerts_router
 from api.http.routers import dashboard as dashboard_router
 from api.http.routers import dataset as dataset_router
+from api.http.routers import health
+from api.http.routers import models as models_router
+from api.http.routers import predict as predict_router
+from api.http.routers import training as training_router
+from config.settings import get_settings
 from pipeline.store import ModelStore
 from runtime.manifest import resolve_host_environment
 

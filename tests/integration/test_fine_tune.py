@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -11,7 +11,6 @@ import pytest
 from httpx import AsyncClient
 
 from db.models import Alert, ModelVersion
-
 
 # asyncio_mode = "auto" in pyproject.toml handles async tests; no module-level mark needed.
 
@@ -37,7 +36,7 @@ def _alert_dict(**kwargs) -> dict:
         ae_threshold=0.9,
         top_features_json=json.dumps([]),
         analyst_verdict=None,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
     )
     defaults.update(kwargs)
     return defaults
@@ -105,10 +104,11 @@ def test_mlp_ae_fine_tune_save_load(tmp_path):
 # ── Unit: save_artifacts copy_clf_from ────────────────────────────────────────
 
 def test_save_artifacts_copy_clf_from(tmp_path):
-    from pipeline.store import ModelStore
+    from sklearn.preprocessing import StandardScaler
+
     from pipeline.models.detector.autoencoder import MLPAutoencoder
     from pipeline.preprocessing.feature_engineering import FeatureEngResult
-    from sklearn.preprocessing import StandardScaler
+    from pipeline.store import ModelStore
 
     # Create a fake classifier.joblib in a "previous" dir
     src = tmp_path / "prev"

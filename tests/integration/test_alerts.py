@@ -2,9 +2,8 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-import pytest
 from httpx import AsyncClient
 
 from db.models import Alert
@@ -22,7 +21,7 @@ def _make_alert(**kwargs) -> dict:
         top_features_json=json.dumps([{"name": "feat_a", "contribution": 0.4}]),
         analyst_verdict=None,
         feedback_at=None,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
     )
     defaults.update(kwargs)
     return defaults

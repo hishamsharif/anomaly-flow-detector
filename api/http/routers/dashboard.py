@@ -3,10 +3,10 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config.settings import get_settings
-from api.http.dao.db_conn import get_db
 from api.http.dao import dashboard as dashboard_dao
+from api.http.dao.db_conn import get_db
 from api.http.schemas import DashboardSummary
+from config.settings import get_settings
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 

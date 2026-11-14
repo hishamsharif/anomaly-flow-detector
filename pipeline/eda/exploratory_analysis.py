@@ -18,10 +18,14 @@ import json
 import logging
 import sys
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
@@ -54,7 +58,7 @@ def _day_label(filename: str) -> tuple[str, str]:
     return Path(filename).stem, "train"
 
 
-def _load_csv_raw(path: Path) -> "pd.DataFrame":
+def _load_csv_raw(path: Path) -> pd.DataFrame:
     """Load a single CSV keeping the Label column, return raw DataFrame."""
     import duckdb
     db = duckdb.connect()
@@ -72,7 +76,7 @@ def _load_csv_raw(path: Path) -> "pd.DataFrame":
     return df
 
 
-def _numeric_features(df: "pd.DataFrame") -> list[str]:
+def _numeric_features(df: pd.DataFrame) -> list[str]:
     return [c for c in df.select_dtypes(include=["number"]).columns if c != "label"]
 
 
@@ -209,7 +213,7 @@ def run_eda(dataset_dir: str, output_path: str = "data/eda_summary.json") -> dic
             "after_correlation": feature_counts["after_correlation"],
             "after_selector": feature_counts["after_selector"],
         },
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
     out = Path(output_path)
@@ -220,13 +224,12 @@ def run_eda(dataset_dir: str, output_path: str = "data/eda_summary.json") -> dic
     return summary
 
 
-def _compute_feature_counts(full_df: "pd.DataFrame", benign_total: int) -> dict:
+def _compute_feature_counts(full_df: pd.DataFrame, benign_total: int) -> dict:
     """Run the preprocessing pipeline on a stratified sample, return feature counts."""
-    import pandas as pd
     from config.settings import get_settings
-    from pipeline.preprocessing.variance_filter import VarianceFilter
     from pipeline.preprocessing.correlation_filter import CorrelationFilter
     from pipeline.preprocessing.selector import FeatureSelector
+    from pipeline.preprocessing.variance_filter import VarianceFilter
 
     settings = get_settings()
 
@@ -239,7 +242,6 @@ def _compute_feature_counts(full_df: "pd.DataFrame", benign_total: int) -> dict:
     # Build a cleaned numeric DataFrame from the raw data
     df = full_df.copy()
     df.columns = [c.strip() for c in df.columns]
-    import numpy as np
     df = df.replace([np.inf, -np.inf], np.nan).dropna()
 
     num_cols = df.select_dtypes(include=[np.number]).columns.tolist()
@@ -293,11 +295,8 @@ def _compute_feature_counts(full_df: "pd.DataFrame", benign_total: int) -> dict:
     }
 
 
-def _compute_correlation(full_df: "pd.DataFrame", feature_counts: dict) -> tuple[list[str], list[list[float]]]:
+def _compute_correlation(full_df: pd.DataFrame, feature_counts: dict) -> tuple[list[str], list[list[float]]]:
     """Compute Pearson correlation matrix for top-N surviving features on benign sample."""
-    import numpy as np
-    import pandas as pd
-
     names_c: list[str] = feature_counts.get("_names_after_correlation", [])
     if not names_c or full_df.empty:
         return [], []

@@ -3,9 +3,14 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.http.dao.db_conn import get_db
 from api.http.dao import model_versions as model_versions_dao
-from api.http.schemas import AvailableTypesResponse, ModelVersionResponse, PaginatedModels, TypeEntry
+from api.http.dao.db_conn import get_db
+from api.http.schemas import (
+    AvailableTypesResponse,
+    ModelVersionResponse,
+    PaginatedModels,
+    TypeEntry,
+)
 from pipeline.models.registry import CLASSIFIER_LABELS, DETECTOR_LABELS
 from pipeline.store import ModelStore
 

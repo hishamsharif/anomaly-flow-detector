@@ -2,15 +2,12 @@
 from __future__ import annotations
 
 import io
-import json
-from pathlib import Path
+from datetime import UTC
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
-import pytest
 from httpx import AsyncClient
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -20,9 +17,10 @@ N_FEATURES = len(FEATURE_NAMES)
 
 def _make_bundle(ae_threshold: float = 0.5, novel_critical_threshold: float = 0.3):
     """Return a mock ArtifactBundle that mimics the real object's interface."""
-    from pipeline.store import ArtifactBundle
-    from sklearn.preprocessing import StandardScaler
     import numpy as np
+    from sklearn.preprocessing import StandardScaler
+
+    from pipeline.store import ArtifactBundle
 
     clf = MagicMock()
     # label=1 (attack), confidence=0.9 → KNOWN_ATTACK; side_effect scales to input size
@@ -86,8 +84,9 @@ def test_csv_adapter_rejects_missing_feature():
 
 
 def test_csv_adapter_rejects_nan_rows():
-    from pipeline.inference.adapters.csv_adapter import parse_csv
     import io
+
+    from pipeline.inference.adapters.csv_adapter import parse_csv
     # Row 1 has NaN in feat_a
     df = pd.DataFrame({f: [1.0, 2.0, 3.0] for f in FEATURE_NAMES})
     df.at[1, "feat_a"] = float("nan")
@@ -160,8 +159,8 @@ def test_pipeline_top_features_populated():
 
 
 def test_pipeline_stage1_safe_rule():
-    from pipeline.rule_engine import RuleEngine
     from pipeline.inference.predict_classifier import run_batch_inference
+    from pipeline.rule_engine import RuleEngine
     bundle = _make_bundle()
     re = RuleEngine(port_verdict_rules={}, allowlisted_ports=frozenset({443}))
     flows = [{"Destination Port": 443.0, **{f: 1.0 for f in FEATURE_NAMES}}]
@@ -172,8 +171,8 @@ def test_pipeline_stage1_safe_rule():
 
 
 def test_pipeline_stage1_known_attack_rule():
-    from pipeline.rule_engine import RuleEngine
     from pipeline.inference.predict_classifier import run_batch_inference
+    from pipeline.rule_engine import RuleEngine
     bundle = _make_bundle()
     re = RuleEngine(port_verdict_rules={21: "KNOWN_ATTACK"}, allowlisted_ports=frozenset())
     flows = [{"Destination Port": 21.0, **{f: 1.0 for f in FEATURE_NAMES}}]
@@ -241,16 +240,17 @@ async def test_batch_predict_sync_returns_200(client: AsyncClient):
          patch("api.http.routers.predict.alerts_dao.bulk_insert_alerts") as mock_insert:
         mock_store.get.return_value.get_active.return_value = bundle
 
-        from db.models import Alert
-        from datetime import datetime, timezone
         import json
+        from datetime import datetime
+
+        from db.models import Alert
 
         fake_alert = Alert(
             id=1, flow_id="0", consensus="KNOWN_ATTACK", severity="high",
             predicted_label=1, classifier_confidence=0.9, ae_score=0.1,
             ae_threshold=0.5, top_features_json=json.dumps([]),
             analyst_verdict=None, feedback_at=None,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
         mock_insert.return_value = [fake_alert]
 
@@ -278,8 +278,9 @@ async def test_predict_job_results_404(client: AsyncClient):
 
 
 async def test_predict_job_results_409_not_done(client: AsyncClient):
-    from api.http import jobs as _jobs
     import threading
+
+    from api.http import jobs as _jobs
     barrier = threading.Event()
 
     def _slow(*args):

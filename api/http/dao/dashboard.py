@@ -1,7 +1,7 @@
 """Data Access Object — Dashboard summary query."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +10,7 @@ from db.models import Alert
 
 
 async def get_dashboard_summary(db: AsyncSession, threshold: int) -> dict:
-    since = datetime.now(timezone.utc) - timedelta(hours=24)
+    since = datetime.now(UTC) - timedelta(hours=24)
 
     # 24-hour windowed consensus counts
     consensus_24h = (await db.execute(

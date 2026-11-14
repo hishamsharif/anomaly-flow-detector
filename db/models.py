@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 from sqlalchemy import Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -18,7 +19,7 @@ class ModelVersion(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="training")
     path: Mapped[str | None] = mapped_column(String(512), nullable=True)
     metrics_json: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=lambda: datetime.now(UTC))
 
 
 class Alert(Base):
@@ -39,5 +40,5 @@ class Alert(Base):
     analyst_verdict: Mapped[str | None] = mapped_column(String(32), nullable=True)
     feedback_at: Mapped[datetime | None] = mapped_column(nullable=True)
     timestamp: Mapped[datetime] = mapped_column(
-        nullable=False, default=lambda: datetime.now(timezone.utc)
+        nullable=False, default=lambda: datetime.now(UTC)
     )

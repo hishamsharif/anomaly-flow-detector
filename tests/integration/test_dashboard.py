@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from httpx import AsyncClient
 
 from db.models import Alert
-
 
 pytestmark = pytest.mark.asyncio
 
@@ -21,7 +20,7 @@ def _alert_dict(**kwargs) -> dict:
         ae_threshold=0.9,
         top_features_json=json.dumps([]),
         analyst_verdict=None,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
     )
     defaults.update(kwargs)
     return defaults

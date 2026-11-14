@@ -2,16 +2,16 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 import numpy as np
 
 from db.utils.sync_ops import sync_set_active, sync_update_model_version
 from pipeline.models.registry import ANOMALY_DETECTOR_REGISTRY
-from pipeline.store import ModelStore
 from pipeline.preprocessing.data_loader import load_dataset
 from pipeline.preprocessing.feature_engineering import FeatureEngResult
+from pipeline.store import ModelStore
 
 
 def _apply_saved_transforms(df, bundle) -> tuple[np.ndarray, np.ndarray]:

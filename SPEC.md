@@ -47,7 +47,7 @@ over time without a full manual retrain.
 | Novel/zero-day attack judgments require human expertise, but today that expertise is discarded — the system never learns from it and degrades as the threat landscape drifts. | **Stage 3 — HITL + Periodic AE retrain:** Analyst verdicts (`confirmed` / `override`) accumulate as fine-tune training signal; once the threshold is reached, the MLP-AE is retrained on analyst-labelled benign flows, keeping the benign baseline calibrated as threats evolve. |
 
 **Scope:**
-- CIC-IDS2017 dataset (2.8M flows, 15 attack classes) as the training source
+- CIC-IDS2017 dataset (~1.83M flows, 15 attack classes) as the training source
 - Batch CSV/PCAP inference — upload a file, get scored alerts back
 - Local deployment (laptop or single server) — no cloud dependency
 - Single-user, single-tenant
@@ -206,12 +206,13 @@ GET /api/models/available-types
     "amr": 0.735,
     "pr_auc": 0.818,
     "known_attack_f1": 0.052,
-    "n_features_final": 47,
-    "ae_threshold": 0.003667,
-    "training_duration_s": 888,
-    "train_rows": 2589848,
-    "val_rows": 191033,
-    "test_rows": 512212
+    "n_features_final": 45,
+    "ae_threshold": 1.700613,
+    "ae_outlier_clip_sigma": 5.0,
+    "training_duration_s": 534,
+    "train_rows": 1422579,
+    "val_rows": 1000,
+    "test_rows": 223082
   },
   "created_at": "2026-11-01T10:00:00Z"
 }
@@ -284,7 +285,7 @@ GET /api/predict/{job_id}/results        (async jobs only)
   "predicted_label": null,
   "classifier_confidence": 0.43,
   "ae_score": 0.0089,
-  "ae_threshold": 0.003667,
+  "ae_threshold": 1.700613,
   "top_features": [
     {"name": "Flow Duration", "contribution": 0.41},
     {"name": "Bwd Packet Length Max", "contribution": 0.28}
@@ -730,7 +731,7 @@ This section documents what was learned from V1 (`dev/anomaly-net-flow/`) and dr
 | HITL feedback loop (analyst verdicts → threshold → retrain) | Core differentiator; K=50 threshold + encoder freeze + replay buffer worked |
 | `api/offline/infer.py` standalone examiner entry point | 28k flows/s on GPU; no server required for demos |
 | `pipeline/` with zero HTTP/DB/filesystem dependency | Keeps all ML code portable and testable; receives resolved config as parameters |
-| `DuckDB` for CSV loading | 10× faster than pandas for 2.8M row scan |
+| `DuckDB` for CSV loading | 10× faster than pandas for ~1.83M row scan |
 
 ### What went wrong — fix in V2
 
@@ -979,7 +980,7 @@ and keeping write transactions short.
 **Decision:** Use DuckDB to query CIC-IDS2017 CSV files during training, not pandas `read_csv`.
 
 **Rationale:**
-- CIC-IDS2017 is 2.8M rows across 8 CSV files (~700 MB). Pandas loads everything into memory.
+- CIC-IDS2017 is ~1.83M rows across 8 CSV files (~700 MB). Pandas loads everything into memory.
 - DuckDB scans columns on demand; a query selecting only the needed feature columns uses
   ~3× less peak memory and is ~10× faster on a cold read.
 - The query result is returned as a pandas DataFrame, so the rest of the pipeline is unchanged.
@@ -996,7 +997,7 @@ and keeping write transactions short.
 - XGBoost (tree-based) is invariant to monotone feature transformations — scaling has no effect
   on tree splits. Setting `PreprocessingSpec(needs_scaling=False)` skips the scaler for XGBoost.
 - MLP-AE (gradient-based) requires features on a comparable scale to avoid vanishing/exploding
-  gradients. `preferred_scalers=("quantile",)` for the detector path.
+  gradients. `preferred_scalers=("standard",)` for the detector path.
 - Using the same scaler for both would force the classifier through an unnecessary step.
 
 **Trade-off:** Two scaler artifacts to save and load. Trivial cost vs. correct behaviour.
@@ -1163,9 +1164,9 @@ One-time cost that pays for itself the first time a schema change is needed.
 
 | Alternative | Why rejected |
 |---|---|
-| **Logistic Regression** | Assumes linear decision boundaries. CIC-IDS2017 features have complex non-linear interactions (packet length × flow duration × flag combinations) — a linear model structurally underfits 47 features across 15 attack classes. |
+| **Logistic Regression** | Assumes linear decision boundaries. CIC-IDS2017 features have complex non-linear interactions (packet length × flow duration × flag combinations) — a linear model structurally underfits 45 features across 15 attack classes. |
 | **Naive Bayes** | Assumes feature independence. The correlation pruning step (removing \|r\| > 0.95 pairs) exists precisely because CIC-IDS2017 features are highly correlated — NB's core assumption is directly violated by this dataset. |
-| **SVM** | O(n²)–O(n³) training complexity on 2.8M rows is impractical. No native GPU support. No built-in feature importances — fails the Stage 2 XAI requirement. |
+| **SVM** | O(n²)–O(n³) training complexity on ~1.83M rows is impractical. No native GPU support. No built-in feature importances — fails the Stage 2 XAI requirement. |
 | **Random Forest** | Closest competitor and A1's primary classifier. Parallel bagged trees reduce variance well but XGBoost's sequential boosting corrects residual errors, giving better F1 on imbalanced datasets. RF also lacks native GPU support. Kept as a selectable fallback (one line in `core/registry.py`) for A1 reproducibility. |
 
 **Rationale for XGBoost:**

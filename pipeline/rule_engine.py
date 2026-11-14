@@ -54,7 +54,7 @@ class RuleEngine:
         return None  # ambiguous — Stage 2 handles it
 
     @classmethod
-    def with_defaults(cls) -> "RuleEngine":
+    def with_defaults(cls) -> RuleEngine:
         """
         Production rule set.  By design, the CIC-IDS2017 feature space (flow
         statistics, no IP columns) means very few flows can be deterministically

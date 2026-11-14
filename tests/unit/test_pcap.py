@@ -103,8 +103,9 @@ class TestPcapAdapterNoNfstream:
 
     def test_returns_rejection_when_nfstream_missing(self):
         with patch.dict("sys.modules", {"nfstream": None}):
-            from pipeline.inference.adapters import pcap_adapter
             import importlib
+
+            from pipeline.inference.adapters import pcap_adapter
             importlib.reload(pcap_adapter)
 
             valid, rejected = pcap_adapter.parse_pcap(b"dummy", ["Total Fwd Packets"])
@@ -119,8 +120,9 @@ class TestPcapAdapterNoNfstream:
         mock_nfstream.NFStreamer.side_effect = Exception("bad pcap")
 
         with patch.dict("sys.modules", {"nfstream": mock_nfstream}):
-            from pipeline.inference.adapters import pcap_adapter
             import importlib
+
+            from pipeline.inference.adapters import pcap_adapter
             importlib.reload(pcap_adapter)
 
             valid, rejected = pcap_adapter.parse_pcap(b"not-a-pcap", ["Total Fwd Packets"])
@@ -139,8 +141,9 @@ class TestPcapAdapterNoNfstream:
         mock_nfstream.NFStreamer.return_value = mock_streamer
 
         with patch.dict("sys.modules", {"nfstream": mock_nfstream}):
-            from pipeline.inference.adapters import pcap_adapter
             import importlib
+
+            from pipeline.inference.adapters import pcap_adapter
             importlib.reload(pcap_adapter)
 
             valid, rejected = pcap_adapter.parse_pcap(_build_empty_pcap(), [])
@@ -162,8 +165,9 @@ class TestPcapAdapterNoNfstream:
         mock_nfstream.NFStreamer.return_value = mock_streamer
 
         with patch.dict("sys.modules", {"nfstream": mock_nfstream}):
-            from pipeline.inference.adapters import pcap_adapter
             import importlib
+
+            from pipeline.inference.adapters import pcap_adapter
             importlib.reload(pcap_adapter)
 
             valid, rejected = pcap_adapter.parse_pcap(b"x", ["DOES_NOT_EXIST_XYZ"])
@@ -189,8 +193,9 @@ class TestPcapAdapterNoNfstream:
         mock_nfstream.NFStreamer.return_value = mock_streamer
 
         with patch.dict("sys.modules", {"nfstream": mock_nfstream}):
-            from pipeline.inference.adapters import pcap_adapter
             import importlib
+
+            from pipeline.inference.adapters import pcap_adapter
             importlib.reload(pcap_adapter)
 
             valid, _ = pcap_adapter.parse_pcap(b"x", ["Flow Duration", "Total Fwd Packets"])
@@ -213,8 +218,9 @@ class TestPcapAdapterNoNfstream:
         feature_names = ["Flow Duration", "Total Fwd Packets", "UNKNOWN_FEAT"]
 
         with patch.dict("sys.modules", {"nfstream": mock_nfstream}):
-            from pipeline.inference.adapters import pcap_adapter
             import importlib
+
+            from pipeline.inference.adapters import pcap_adapter
             importlib.reload(pcap_adapter)
 
             valid, _ = pcap_adapter.parse_pcap(b"x", feature_names)

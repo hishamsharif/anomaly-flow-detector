@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 import tempfile
 
-
 # ── CIC-IDS2017 column → nfstream row extractor ───────────────────────────────
 # nfstream `statistical_analysis=True` row is a pandas Series.
 # Unmapped or erroring features fall through to the default of 0.0.

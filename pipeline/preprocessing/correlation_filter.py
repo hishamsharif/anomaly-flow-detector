@@ -9,7 +9,7 @@ class CorrelationFilter:
         self._threshold = threshold
         self._mask: np.ndarray | None = None
 
-    def fit(self, X: np.ndarray, feature_names: list[str]) -> "CorrelationFilter":
+    def fit(self, X: np.ndarray, feature_names: list[str]) -> CorrelationFilter:
         feature_df = pd.DataFrame(X, columns=feature_names)
         corr_matrix = feature_df.corr(method="pearson").abs()
         upper_triangle = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))

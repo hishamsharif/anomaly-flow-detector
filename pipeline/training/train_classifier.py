@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Callable
+from collections.abc import Callable
 
 import numpy as np
 from sklearn.metrics import (
@@ -12,9 +12,9 @@ from sklearn.metrics import (
 
 from db.utils.sync_ops import sync_set_active, sync_update_model_version
 from pipeline.models.registry import ANOMALY_DETECTOR_REGISTRY, CLASSIFIER_REGISTRY
-from pipeline.store import ModelStore
 from pipeline.preprocessing.data_loader import load_dataset
 from pipeline.preprocessing.feature_engineering import run_feature_engineering
+from pipeline.store import ModelStore
 
 
 def run_initial_training(

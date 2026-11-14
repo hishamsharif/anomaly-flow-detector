@@ -12,7 +12,7 @@ class VarianceFilter:
         self._selector: _VT | None = None
         self._mask: np.ndarray | None = None
 
-    def fit(self, X: np.ndarray) -> "VarianceFilter":
+    def fit(self, X: np.ndarray) -> VarianceFilter:
         self._selector = _VT(threshold=self._threshold)
         # sklearn calls np.nanvar which emits RuntimeWarning on all-NaN columns;
         # those columns are correctly dropped, so the warning is benign.
